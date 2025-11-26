@@ -174,7 +174,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen dark:bg-black">
+    <div className="flex min-h-[100%] dark:bg-black">
       <main className="flex flex-col flex-1">
         <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 right-0 bg-white dark:bg-zinc-900 z-10">
           <h2>{userId}</h2>

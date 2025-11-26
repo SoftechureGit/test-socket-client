@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar"
+import AppNavbar from "@/components/app-navbar"
 import {
   SidebarInset,
   SidebarProvider
@@ -29,11 +30,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
 // export default function Page() {
+
   return (
       <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <AppNavbar />
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
