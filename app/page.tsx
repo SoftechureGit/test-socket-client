@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import MessageInput from "@/components/custom/MessageInput";
+import ChatHover from "@/components/chat-hover"; 
 import DOMPurify from "dompurify";
 
 type ChatMessage = {
@@ -20,7 +21,7 @@ export default function Home() {
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-
+  const [hoveredId, setHoveredId] = useState<string | number | null>(null);
   const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://192.168.1.14:5000";
 
   // Create socket after userId is set (so we can pass userId in auth)
@@ -183,14 +184,19 @@ export default function Home() {
 
         <div
           ref={containerRef}
-          className="flex-1 overflow-y-auto p-6 space-y-4"
+          className="flex-1  overflow-y-auto p-6 "
           style={{ scrollbarGutter: "stable" }}
         >
           {messages.map((msg) => (
             <div
-              key={msg.id ?? `${msg.sender_id}-${msg.created_at ?? Math.random()}`}
-              className={`flex ${msg.self ? "justify-end" : "justify-start"}`}
-            >
+  key={msg.id ?? `${msg.sender_id}-${msg.created_at ?? Math.random()}`}
+      className={`hover:bg-gray-50 p-2 rounded-xl relative flex items-center gap-3 ${msg.self ? "justify-end" : "justify-start"}`}
+      onMouseEnter={() => setHoveredId(msg.id ?? `${msg.sender_id}-${msg.created_at ?? Math.random()}`)}
+      onMouseLeave={() => setHoveredId(null)}
+    >
+            {hoveredId === (msg.id ?? `${msg.sender_id}-${msg.created_at ?? Math.random()}`) &&  msg.self &&  (
+                  <ChatHover />                
+              )} 
               <div
                 className={`p-3 rounded-xl max-w-xs break-words ${
                   msg.self ? "bg-black text-white" : "bg-zinc-200"
@@ -208,6 +214,9 @@ export default function Home() {
                   </div>
                 ) : null}
               </div>
+              {hoveredId === (msg.id ?? `${msg.sender_id}-${msg.created_at ?? Math.random()}`) &&  !msg.self &&  (
+                  <ChatHover />                
+              )} 
             </div>
           ))}
         </div>
