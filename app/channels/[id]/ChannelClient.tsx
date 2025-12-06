@@ -1,0 +1,624 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { io, Socket } from "socket.io-client";
+import DOMPurify from "dompurify";
+import Picker from "@emoji-mart/react";
+
+import MessageInput from "@/components/custom/MessageInput";
+import ChatHover from "@/components/chat-hover";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+type Reaction = { emoji: string; count: number; users?: string[] };
+
+type ChatMessage = {
+  id?: number | string;
+  channel_id: string;
+  sender_id: string;
+  content: string;
+  self: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  reactions?: Reaction[];
+};
+
+
+
+export default function ChannelClient({ channelId }: { channelId: string }) {
+  useEffect(() => {
+    console.log("ChannelClient mounted for channel:", channelId);
+  }, []);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [userId, setUserId] = useState<string>("");
+  const [tempUserId, setTempUserId] = useState<string>("");
+  const [connected, setConnected] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | number | null>(null);
+
+  const SERVER_URL =
+    process.env.NEXT_PUBLIC_SERVER_URL ?? "http://192.168.1.14:5000";
+
+  // EDIT state
+  const [editMessageId, setEditMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState<string>("");
+
+  const [showEmojiPickerFor, setShowEmojiPickerFor] = useState<string | null>(
+    null
+  );
+
+  // Socket connection / listeners
+  useEffect(() => {
+    if (!userId) return;
+
+    const s = io(SERVER_URL, {
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+      auth: { userId },
+      withCredentials: true,
+    });
+
+    socketRef.current = s;
+
+    const handleReceive = (msg: any) => {
+      // Fallback: if msg.channel_id is missing, assume current channel
+      const msgChannelId =
+        msg.channel_id != null ? String(msg.channel_id) : String(channelId);
+      if (msgChannelId !== String(channelId)) return;
+
+      const stableId =
+        msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+      const createdAt = msg.created_at ?? new Date().toISOString();
+
+      const chatMsg: ChatMessage = {
+        id: stableId,
+        channel_id: msgChannelId,
+        sender_id: String(msg.sender_id),
+        content: msg.content,
+        self: String(msg.sender_id) === String(userId),
+        created_at: createdAt,
+      };
+
+      setMessages((prev) => {
+        if (
+          chatMsg.id != null &&
+          prev.some((m) => String(m.id) === String(chatMsg.id))
+        )
+          return prev;
+
+        const next = [...prev, chatMsg].sort((a, b) => {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return ta - tb;
+        });
+        return next;
+      });
+    };
+
+    const handleAck = (msg: any) => {
+      const msgChannelId =
+        msg.channel_id != null ? String(msg.channel_id) : String(channelId);
+      if (msgChannelId !== String(channelId)) return;
+
+      const stableId =
+        msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+      const createdAt = msg.created_at ?? new Date().toISOString();
+
+      const chatMsg: ChatMessage = {
+        id: stableId,
+        channel_id: msgChannelId,
+        sender_id: String(msg.sender_id),
+        content: msg.content,
+        self: true,
+        created_at: createdAt,
+      };
+
+      setMessages((prev) => {
+        if (
+          chatMsg.id != null &&
+          prev.some((m) => String(m.id) === String(chatMsg.id))
+        )
+          return prev;
+
+        const next = [...prev, chatMsg].sort((a, b) => {
+          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return ta - tb;
+        });
+        return next;
+      });
+    };
+
+    const handleReactionsUpdate = ({ messageId, reactions }: any) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          String(msg.id) === String(messageId) ? { ...msg, reactions } : msg
+        )
+      );
+    };
+
+    const handleMessageEdited = (msg: any) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          String(m.id) === String(msg.id)
+            ? { ...m, content: msg.content, updated_at: msg.updated_at }
+            : m
+        )
+      );
+    };
+
+    s.on("connect", () => {setConnected(true);
+       s.emit("joinChannel", { channelId });
+    });
+    s.on("disconnect", () => setConnected(false));
+    s.on("receiveMessage", handleReceive);
+    s.on("messageAck", handleAck);
+    s.on("reactionUpdated", handleReactionsUpdate);
+    s.on("messageEdited", handleMessageEdited);
+
+    return () => {
+      s.off("receiveMessage", handleReceive);
+      s.off("messageAck", handleAck);
+      s.off("reactionUpdated", handleReactionsUpdate);
+      s.off("messageEdited", handleMessageEdited);
+      s.off("connect");
+      s.off("disconnect");
+      s.close();
+      socketRef.current = null;
+    };
+  }, [userId, SERVER_URL, channelId]);
+
+  // Initial history for this channel
+ useEffect(() => {
+  if (!userId) return;
+
+  fetch(`${SERVER_URL}/channels/${channelId}`)
+    .then(res => res.json())
+    .then((data: any) => {
+      // channel info
+      console.log("Channel:", data.channel);
+      console.log("Members:", data.members);
+
+      const mapped = data.messages.map((msg: any) => {
+        const stableId =
+          msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+        const createdAt = msg.created_at ?? new Date().toISOString();
+
+        let reactions: Reaction[] | undefined = [];
+
+        try {
+          const raw =
+            typeof msg.reactions === "string"
+              ? JSON.parse(msg.reactions)
+              : msg.reactions || [];
+          reactions = raw.map((r: any) => ({
+            emoji: r.emoji,
+            count: r.count,
+            users: r.users,
+          }));
+        } catch {
+          reactions = [];
+        }
+
+        return {
+          id: stableId,
+          channel_id: String(msg.channel_id),
+          sender_id: String(msg.sender_id),
+          content: msg.content,
+          self: String(msg.sender_id) === String(userId),
+          created_at: createdAt,
+          updated_at: msg.updated_at ?? null,
+          reactions,
+        };
+      });
+
+      setMessages(
+        mapped.sort((a, b) => {
+          const ta = a.created_at
+            ? new Date(a.created_at).getTime()
+            : 0;
+          const tb = b.created_at
+            ? new Date(b.created_at).getTime()
+            : 0;
+          return ta - tb;
+        })
+      );
+    })
+    .catch(err => {
+      console.error("Failed to load channel data:", err);
+    });
+}, [userId, SERVER_URL, channelId]);
+
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [messages.length]);
+
+  // Send message within this channel
+  const handleSendMessage = (content: string, files?: File[]) => {
+    if (!userId) return alert("Set your user ID first!");
+    const socket = socketRef.current;
+    if (!socket || !socket.connected)
+      return alert("Socket not connected yet.");
+
+    socket.emit("sendMessage", {
+      content,
+      sender_id: userId,
+      channel_id: channelId, // make sure your server uses this
+    });
+  };
+
+  const handleJoin = () => {
+    if (!tempUserId.trim()) return alert("Please enter a valid ID");
+    setUserId(tempUserId.trim());
+  };
+
+  // Edit flow
+  function enableEditMode(messageId: string | number) {
+    const msg = messages.find((m) => String(m.id) === String(messageId));
+    if (!msg) return;
+    setEditMessageId(String(messageId));
+    setEditContent(msg.content);
+  }
+
+  function handleCancelEdit() {
+    setEditMessageId(null);
+    setEditContent("");
+  }
+
+  function handleSaveEdit(
+    messageId: string,
+    newContent: string,
+    files?: File[]
+  ) {
+    const socket = socketRef.current;
+
+    // optimistic update locally
+    setMessages((prev) =>
+      prev.map((m) =>
+        String(m.id) === String(messageId)
+          ? { ...m, content: newContent, updated_at: new Date().toISOString() }
+          : m
+      )
+    );
+
+    if (socket && socket.connected) {
+      socket.emit("editMessage", { messageId, content: newContent });
+    } else {
+      console.warn(
+        "Socket not connected — edit will not be sent to server now."
+      );
+    }
+
+    setEditMessageId(null);
+    setEditContent("");
+  }
+
+  function openEmojiPicker(messageId: string) {
+    setShowEmojiPickerFor(messageId);
+  }
+
+  function addEmojiToMessage(messageId: string | number, emoji: any) {
+    const socket = socketRef.current;
+    if (!socket) return setShowEmojiPickerFor(null);
+    const selectedEmoji = emoji.native ?? emoji.colons ?? String(emoji);
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (String(msg.id) !== String(messageId)) return msg;
+
+        const reactions = msg.reactions
+          ? msg.reactions.map((r) => ({
+              ...r,
+              users: Array.isArray(r.users) ? r.users : [],
+            }))
+          : [];
+
+        const existing = reactions.find((r) => r.emoji === selectedEmoji);
+        if (existing) {
+          if (!existing.users!.includes(userId)) {
+            existing.users!.push(userId);
+            existing.count = existing.users!.length;
+          }
+        } else {
+          reactions.push({ emoji: selectedEmoji, count: 1, users: [userId] });
+        }
+
+        return { ...msg, reactions };
+      })
+    );
+
+    socket.emit("reactMessage", {
+      messageId,
+      emoji: selectedEmoji,
+      sender_id: userId,
+    });
+
+    setShowEmojiPickerFor(null);
+  }
+
+  function toggleReaction(messageId: string | number, emoji: string) {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (String(msg.id) !== String(messageId)) return msg;
+
+        const reactions = msg.reactions
+          ? msg.reactions.map((r) => ({
+              ...r,
+              users: Array.isArray(r.users) ? r.users : [],
+            }))
+          : [];
+
+        const idx = reactions.findIndex((r) => r.emoji === emoji);
+
+        if (idx === -1) {
+          reactions.push({ emoji, count: 1, users: [userId] });
+        } else {
+          const entry = reactions[idx];
+          const users = entry.users ?? [];
+          const hasReacted = users.includes(userId);
+
+          if (!hasReacted) {
+            const newUsers = [...users, userId];
+            reactions[idx] = {
+              ...entry,
+              users: newUsers,
+              count: newUsers.length,
+            };
+          } else {
+            const newUsers = users.filter((u) => u !== userId);
+
+            if (newUsers.length > 0) {
+              reactions[idx] = {
+                ...entry,
+                users: newUsers,
+                count: newUsers.length,
+              };
+            } else {
+              reactions.splice(idx, 1);
+            }
+          }
+        }
+
+        return { ...msg, reactions };
+      })
+    );
+
+    socket.emit("reactMessage", { messageId, emoji, sender_id: userId });
+  }
+
+  function handleChatAction(action: string, messageId: string) {
+    switch (action) {
+      case "reaction":
+        openEmojiPicker(messageId);
+        break;
+      case "reply":
+        // implement reply-to-thread or inline reply if needed
+        break;
+      case "pin":
+        break;
+      case "forward":
+        break;
+      case "edit":
+        enableEditMode(messageId);
+        break;
+      case "delete":
+        deleteMessage(messageId);
+        break;
+      default:
+        break;
+    }
+  }
+
+  function deleteMessage(messageId: string) {
+    if (!confirm("Delete this message?")) return;
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit("deleteMessage", { id: messageId });
+    setMessages((prev) =>
+      prev.filter((m) => String(m.id) !== String(messageId))
+    );
+  }
+
+  // If userId not set yet, show join screen
+  if (!userId) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex flex-col gap-4">
+          <input
+            type="text"
+            placeholder="Enter your unique ID"
+            className="p-2 border rounded"
+            value={tempUserId}
+            onChange={(e) => setTempUserId(e.target.value)}
+          />
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+            onClick={handleJoin}
+          >
+            Join Channel {channelId}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-[100%] dark:bg-black">
+      <main className="flex flex-col flex-1">
+        <div className="flex items-center justify-between px-6 py-4 border-y sticky top-[56px] right-0 bg-[var(--background)] text-[var(--foreground)] z-10">
+          <div className="flex flex-col">
+            <h2>{userId}</h2>
+            <span className="text-xs opacity-70">
+              Channel: <span className="font-mono">#{channelId}</span>
+            </span>
+          </div>
+          <span>{connected ? "Online" : "Connecting..."}</span>
+        </div>
+
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-y-auto py-6 !px-[3rem]"
+          style={{ scrollbarGutter: "stable" }}
+        >
+          {messages.map((msg) => {
+            const msgId = String(msg.id);
+            return (
+              <div
+                key={msgId}
+                className={`hover:bg-gray-50 p-1 rounded-xl relative flex items-center gap-3 ${
+                  msg.self ? "justify-end" : "justify-start"
+                }`}
+                onMouseEnter={() => setHoveredId(msgId)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+                {hoveredId === msgId && msg.self && (
+                  <ChatHover messageId={msgId} onAction={handleChatAction} />
+                )}
+
+                <div
+                  className={`p-1 rounded-xl break-words flex ${
+                    msg.self ? "flex-row-reverse" : "flex-row"
+                  }  gap-2 items-center relative`}
+                >
+                  <div className="relative">
+                    <div
+                      className={`rounded-md p-2 break-words w-fit ${
+                        msg.self ? "bg-black text-white" : "bg-zinc-200"
+                      }`}
+                    >
+                      <div
+                        className="leading-none"
+                        dangerouslySetInnerHTML={{
+                          __html: DOMPurify.sanitize(msg.content),
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {msg.reactions && msg.reactions.length > 0 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex gap-1 flex-wrap whitespace-nowrap cursor-pointer">
+                          {msg.reactions.map((r, idx) => (
+                            <span
+                              key={idx}
+                              onClick={() => toggleReaction(msg.id!, r.emoji)}
+                              className="text-sm px-2 leading-none py-1 bg-gray-200 rounded-full flex items-center gap-1 border border-black"
+                            >
+                              {r.emoji} {r.count <= 1 ? "" : r.count}
+                            </span>
+                          ))}
+                        </div>
+                      </TooltipTrigger>
+
+                      <TooltipContent className="bg-black text-white p-2 text-xs rounded-md grid grid-cols-2 gap-1">
+                        <p className="font-semibold mb-1 col-span-2">
+                          Reactions:
+                        </p>
+
+                        {msg.reactions.map((r, i) => (
+                          <div key={i} className="mb-1 col-span-1">
+                            <strong>{r.emoji}</strong>
+                            <div className="ml-2">
+                              {(r.users ?? []).map((uid, j) => (
+                                <div key={j}>User {uid}</div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+
+                  {msg.created_at && (
+                    <div
+                      className={`text-[10px] top-[50%] translate-y-[-50%] opacity-60 absolute flex-col ${
+                        msg.self
+                          ? "right-0 translate-x-[calc(100%+4px)]"
+                          : "left-0 -translate-x-[calc(100%+4px)]"
+                      } whitespace-nowrap flex items-center gap-0`}
+                    >
+                      {new Date(msg.created_at).toLocaleString("en-US", {
+                        hour: "numeric",
+                        minute: "numeric",
+                        hour12: true,
+                      })}
+
+                      {msg.updated_at &&
+                        msg.updated_at !== msg.created_at && (
+                          <span className="italic opacity-60 ml-1">
+                            (edited)
+                          </span>
+                        )}
+                    </div>
+                  )}
+                </div>
+
+                {showEmojiPickerFor === msgId && (
+                  <Popover
+                    open={true}
+                    onOpenChange={(open) => {
+                      if (!open) setShowEmojiPickerFor(null);
+                    }}
+                  >
+                    <PopoverTrigger>
+                      <Button
+                        size="sm"
+                        className="absolute -right-10 top-2 p-1"
+                        aria-label="Emoji picker trigger"
+                      >
+                        😊
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 z-[99999]">
+                      <Picker
+                        onEmojiSelect={(emoji) =>
+                          addEmojiToMessage(msgId, emoji)
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
+
+                {hoveredId === msgId && !msg.self && (
+                  <ChatHover messageId={msgId} onAction={handleChatAction} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="p-4 sticky bottom-0 right-0 bg-white dark:bg-zinc-900 border-t">
+          <MessageInput
+            onSend={handleSendMessage}
+            editingMessageId={editMessageId}
+            editingInitialContent={editContent}
+            onSaveEdit={handleSaveEdit}
+            onCancelEdit={handleCancelEdit}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}

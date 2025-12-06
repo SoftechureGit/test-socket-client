@@ -5,28 +5,30 @@ import { MdAddReaction } from "react-icons/md";
 import { IoPinSharp } from "react-icons/io5";
 import { FaRegEdit } from "react-icons/fa";
 import { MdDeleteForever } from "react-icons/md";
-import { RiShareForwardFill } from "react-icons/ri";
-import { RiReplyFill } from "react-icons/ri";
+import { RiShareForwardFill, RiReplyFill } from "react-icons/ri";
 
-export default function ChatHover() {
+export default function ChatHover({ messageId, onAction }) {
   const items = [
-    { icon: <MdAddReaction />, label: "Reaction" },
-    { icon: <RiReplyFill />, label: "Reply" },
-    { icon: <IoPinSharp />, label: "Pin" },
-    { icon: <RiShareForwardFill />, label: "Forword" },
-    { icon: <FaRegEdit />, label: "Edit" },
-    { icon: <MdDeleteForever />, label: "Delete" },
+    { type: "reaction", icon: <MdAddReaction />, label: "Reaction" },
+    { type: "reply", icon: <RiReplyFill />, label: "Reply" },
+    { type: "pin", icon: <IoPinSharp />, label: "Pin" },
+    { type: "forward", icon: <RiShareForwardFill />, label: "Forward" },
+    { type: "edit", icon: <FaRegEdit />, label: "Edit" },
+    { type: "delete", icon: <MdDeleteForever />, label: "Delete" },
   ];
 
   return (
     <div className="flex gap-2 w-fit h-fit py-1 px-2 rounded-2xl bg-white shadow border border-gray-200">
-      {items.map((item, i) => (
-        <div key={i} className="relative group">
+      {items.map((item) => (
+        <div key={item.type} className="relative group">
           {/* Icon */}
-          <div className="p-1 rounded-xl hover:bg-gray-100 transition-all duration-200 cursor-pointer active:scale-90">
+          <div
+            onClick={() => onAction(item.type, messageId)}
+            className="p-0 rounded-xl hover:bg-gray-100 transition-all duration-200 cursor-pointer active:scale-90"
+          >
             {React.cloneElement(item.icon, {
               size: 18,
-              className: "text-gray-700",
+              className: "text-[var(--foreground)]",
             })}
           </div>
 
@@ -34,10 +36,11 @@ export default function ChatHover() {
           <span
             className="
               absolute -bottom-10 left-1/2 -translate-x-1/2 
-              py-1 px-2 text-xs rounded-md 
+              py-1 px-2 text-xs rounded-md
               bg-black text-white 
               opacity-0 group-hover:opacity-100 
-              transition-all duration-200  "
+              transition-all duration-200
+            "
           >
             {item.label}
           </span>
