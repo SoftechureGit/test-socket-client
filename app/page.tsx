@@ -381,27 +381,7 @@ function handleSaveEdit(
     );
   }
 
-  if (!userId) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col gap-4">
-          <input
-            type="text"
-            placeholder="Enter your unique ID"
-            className="p-2 border rounded"
-            value={tempUserId}
-            onChange={(e) => setTempUserId(e.target.value)}
-          />
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded"
-            onClick={handleJoin}
-          >
-            Join Chat
-          </button>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="flex min-h-[100%] dark:bg-black">

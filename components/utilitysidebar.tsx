@@ -42,7 +42,7 @@ export function RightSidebar() {
 
       <SidebarContent>
          <Collapsible
-            defaultOpen={true}
+            defaultOpen={false}
             className="group/collapsible"
           >
             <SidebarMenuItem>
