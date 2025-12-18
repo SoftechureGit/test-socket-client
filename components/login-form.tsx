@@ -33,7 +33,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
 
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3001"}/auth/login`,
+      `api/auth/login`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,12 +73,6 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Welcome back</CardTitle>
-          <CardDescription>
-            Already a member of Softechure Team?{" "}
-            <Link className="underline" href={"/handle-external-login"}>
-              Sign in
-            </Link>
-          </CardDescription>
         </CardHeader>
 
         <CardContent>

@@ -11,7 +11,6 @@ import {
   GalleryVerticalEnd,
   Map,
   PieChart,
-  Settings2,
   SquareTerminal,
 } from "lucide-react";
 
@@ -27,41 +26,49 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 
+// const API_URL = process.env.NEXT_PUBLIC_SERVER_URL;
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
- const [channels, setChannels] = React.useState([]);
-const [users, setUsers] = React.useState([]);
+  const [channels, setChannels] = React.useState<any[]>([]);
+  const [users, setUsers] = React.useState<any[]>([]);
 
-React.useEffect(() => {
-  const fetchData = async () => {
-    try {
-      // Fetch channels
-      const ch = await axios.get(`${process.env.NEXT_PUBLIC_SERVER_URL}/channels`);
-      const mappedCh = ch.data.map((ch: any) => ({
-        title: ch.name,
-        url: `/channels/${ch.id}`,
-      }));
-      setChannels(mappedCh);
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // ✅ Channels
+        const ch = await axios.get(`${process.env.NEXT_PUBLIC_SERVER_URL}/channels`, {
+  withCredentials: true,
+});
 
-      // Fetch users
-      const us = await axios.get(`${process.env.NEXT_PUBLIC_SERVER_URL}/users`);
-      const mappedUsers = us.data.map((u: any) => ({
-        title: u.name,
-        url: `/dm/${u.id}`, // change to your DM page route
-        avatar: u.avatar_url,
-        is_online: u.is_online,
-      }));
-      setUsers(mappedUsers);
+        setChannels(
+          ch.data.map((c: any) => ({
+            title: c.name,
+            url: `/channels/${c.id}`,
+          }))
+        );
 
-    } catch (err) {
-      console.error("Sidebar fetch error:", err);
-    }
-  };
-
-  fetchData();
-}, []);
+        // ✅ Users
+        const us = await axios.get(`${process.env.NEXT_PUBLIC_SERVER_URL}/users`, {
+  withCredentials: true,
+});
 
 
-  // ----- STATIC DATA (kept same as your previous structure) -----
+        setUsers(
+          us.data.map((u: any) => ({
+            title: u.name,
+            url: `/dm/${u.id}`,
+            avatar: u.avatar_url,
+            is_online: u.is_online,
+          }))
+        );
+      } catch (err) {
+        console.error("Sidebar fetch error:", err);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const data = {
     user: {
       name: "shadcn",
@@ -79,7 +86,7 @@ React.useEffect(() => {
         url: "#",
         icon: SquareTerminal,
         isActive: true,
-        items: channels, // 🔥 dynamic channels injected here
+        items: channels,
       },
       {
         title: "Direct Messages",
@@ -94,8 +101,6 @@ React.useEffect(() => {
         items: [
           { title: "Introduction", url: "#" },
           { title: "Get Started", url: "#" },
-          { title: "Tutorials", url: "#" },
-          { title: "Changelog", url: "#" },
         ],
       },
     ],
@@ -114,8 +119,6 @@ React.useEffect(() => {
 
       <SidebarContent>
         <NavProjects projects={data.projects} />
-
-        {/* Now dynamic */}
         <NavMain items={data.navMain} />
       </SidebarContent>
 

@@ -21,7 +21,7 @@ export default function AppNavbar() {
   const { isMobile } = useSidebar();
 
   return (
-    <header className="w-full fixed top-0 z-50 bg-background text-foreground border-b border-border">
+    <header className="w-full fixed top-0 z-[99] bg-background text-foreground border-b border-border">
       <div className="mx-auto max-w-8xl px-3 sm:px-6">
         <div className="flex items-center h-12 sm:h-14 justify-between">
           {/* LEFT SECTION — Menu + Navigation Arrows + Search */}
