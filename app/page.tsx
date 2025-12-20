@@ -1,7 +1,7 @@
 // Home.tsx
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
+import { useAuth } from "@/components/context/userId_and_connection/provider";
 import MessageInput from "@/components/custom/MessageInput";
 import ChatHover from "@/components/chat-hover";
 import DOMPurify from "dompurify";
@@ -34,10 +34,11 @@ type ChatMessage = {
 
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [userId, setUserId] = useState<string>("");
-  const [tempUserId, setTempUserId] = useState<string>("");
-  const [connected, setConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
+  // const [userId, setUserId] = useState<string>("");
+  // const [tempUserId, setTempUserId] = useState<string>("");
+  // const [connected, setConnected] = useState(false);
+  // const socketRef = useRef<Socket | null>(null);
+const { socket, userId, isOnline } = useAuth();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [hoveredId, setHoveredId] = useState<string | number | null>(null);
   const SERVER_URL =
@@ -86,102 +87,186 @@ export default function Home() {
   };
 
   // end the drag and drop file 
-  useEffect(() => {
-    if (!userId) return;
-    const s = io(SERVER_URL, {
-      path: "/socket.io",
-      transports: ["websocket", "polling"],
-      auth: { userId },
-      withCredentials: true,
+  // useEffect(() => {
+  //   if (!userId) return;
+  //   const s = io(SERVER_URL, {
+  //     path: "/socket.io",
+  //     transports: ["websocket", "polling"],
+  //     auth: { userId },
+  //     withCredentials: true,
+  //   });
+  //   socketRef.current = s;
+
+  //   const handleReceive = (msg: any) => {
+  //     const stableId =
+  //       msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+  //     const createdAt = msg.created_at ?? new Date().toISOString();
+  //     const chatMsg: ChatMessage = {
+  //       id: stableId,
+  //       sender_id: msg.sender_id,
+  //       content: msg.content,
+  //       self: msg.sender_id === userId,
+  //       created_at: createdAt,
+  //     };
+  //     setMessages((prev) => {
+  //       if (
+  //         chatMsg.id != null &&
+  //         prev.some((m) => String(m.id) === String(chatMsg.id))
+  //       )
+  //         return prev;
+  //       const next = [...prev, chatMsg].sort((a, b) => {
+  //         const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+  //         const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+  //         return ta - tb;
+  //       });
+  //       return next;
+  //     });
+  //   };
+
+  //   const handleAck = (msg: any) => {
+  //     const stableId =
+  //       msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+  //     const createdAt = msg.created_at ?? new Date().toISOString();
+  //     const chatMsg: ChatMessage = {
+  //       id: stableId,
+  //       sender_id: msg.sender_id,
+  //       content: msg.content,
+  //       self: true,
+  //       created_at: createdAt,
+  //     };
+  //     setMessages((prev) => {
+  //       if (
+  //         chatMsg.id != null &&
+  //         prev.some((m) => String(m.id) === String(chatMsg.id))
+  //       )
+  //         return prev;
+  //       const next = [...prev, chatMsg].sort((a, b) => {
+  //         const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+  //         const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+  //         return ta - tb;
+  //       });
+  //       return next;
+  //     });
+  //   };
+
+  //   const handleReactionsUpdate = ({ messageId, reactions }: any) => {
+  //     setMessages((prev) =>
+  //       prev.map((msg) =>
+  //         String(msg.id) === String(messageId) ? { ...msg, reactions } : msg
+  //       )
+  //     );
+  //   };
+
+  //   const handleMessageEdited = (msg: any) => {
+  //     setMessages((prev) =>
+  //       prev.map((m) =>
+  //         String(m.id) === String(msg.id) ? { ...m, content: msg.content } : m
+  //       )
+  //     );
+  //   };
+
+  //   s.on("connect", () => setConnected(true));
+  //   s.on("disconnect", () => setConnected(false));
+  //   s.on("receiveMessage", handleReceive);
+  //   s.on("messageAck", handleAck);
+  //   s.on("reactionUpdated", handleReactionsUpdate);
+  //   s.on("messageEdited", handleMessageEdited);
+
+  //   return () => {
+  //     s.off("receiveMessage", handleReceive);
+  //     s.off("messageAck", handleAck);
+  //     s.off("connect");
+  //     s.off("disconnect");
+  //     s.off("reactionUpdated", handleReactionsUpdate);
+  //     s.off("messageEdited", handleMessageEdited);
+  //     s.close();
+  //     socketRef.current = null;
+  //   };
+  // }, [userId, SERVER_URL]);
+
+useEffect(() => {
+  if (!socket || !userId) return;
+
+  const handleReceive = (msg: any) => {
+    const stableId =
+      msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+    const createdAt = msg.created_at ?? new Date().toISOString();
+    const chatMsg: ChatMessage = {
+      id: stableId,
+      sender_id: msg.sender_id,
+      content: msg.content,
+      self: msg.sender_id === userId,
+      created_at: createdAt,
+    };
+    setMessages((prev) => {
+      if (
+        chatMsg.id != null &&
+        prev.some((m) => String(m.id) === String(chatMsg.id))
+      )
+        return prev;
+      const next = [...prev, chatMsg].sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return ta - tb;
+      });
+      return next;
     });
-    socketRef.current = s;
+  };
 
-    const handleReceive = (msg: any) => {
-      const stableId =
-        msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
-      const createdAt = msg.created_at ?? new Date().toISOString();
-      const chatMsg: ChatMessage = {
-        id: stableId,
-        sender_id: msg.sender_id,
-        content: msg.content,
-        self: msg.sender_id === userId,
-        created_at: createdAt,
-      };
-      setMessages((prev) => {
-        if (
-          chatMsg.id != null &&
-          prev.some((m) => String(m.id) === String(chatMsg.id))
-        )
-          return prev;
-        const next = [...prev, chatMsg].sort((a, b) => {
-          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return ta - tb;
-        });
-        return next;
+  const handleAck = (msg: any) => {
+    const stableId =
+      msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+    const createdAt = msg.created_at ?? new Date().toISOString();
+    const chatMsg: ChatMessage = {
+      id: stableId,
+      sender_id: msg.sender_id,
+      content: msg.content,
+      self: true,
+      created_at: createdAt,
+    };
+    setMessages((prev) => {
+      if (
+        chatMsg.id != null &&
+        prev.some((m) => String(m.id) === String(chatMsg.id))
+      )
+        return prev;
+      const next = [...prev, chatMsg].sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return ta - tb;
       });
-    };
+      return next;
+    });
+  };
 
-    const handleAck = (msg: any) => {
-      const stableId =
-        msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
-      const createdAt = msg.created_at ?? new Date().toISOString();
-      const chatMsg: ChatMessage = {
-        id: stableId,
-        sender_id: msg.sender_id,
-        content: msg.content,
-        self: true,
-        created_at: createdAt,
-      };
-      setMessages((prev) => {
-        if (
-          chatMsg.id != null &&
-          prev.some((m) => String(m.id) === String(chatMsg.id))
-        )
-          return prev;
-        const next = [...prev, chatMsg].sort((a, b) => {
-          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return ta - tb;
-        });
-        return next;
-      });
-    };
+  const handleReactionsUpdate = ({ messageId, reactions }: any) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        String(msg.id) === String(messageId) ? { ...msg, reactions } : msg
+      )
+    );
+  };
 
-    const handleReactionsUpdate = ({ messageId, reactions }: any) => {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          String(msg.id) === String(messageId) ? { ...msg, reactions } : msg
-        )
-      );
-    };
+  const handleMessageEdited = (msg: any) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        String(m.id) === String(msg.id) ? { ...m, content: msg.content } : m
+      )
+    );
+  };
 
-    const handleMessageEdited = (msg: any) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          String(m.id) === String(msg.id) ? { ...m, content: msg.content } : m
-        )
-      );
-    };
+  socket.on("receiveMessage", handleReceive);
+  socket.on("messageAck", handleAck);
+  socket.on("reactionUpdated", handleReactionsUpdate);
+  socket.on("messageEdited", handleMessageEdited);
 
-    s.on("connect", () => setConnected(true));
-    s.on("disconnect", () => setConnected(false));
-    s.on("receiveMessage", handleReceive);
-    s.on("messageAck", handleAck);
-    s.on("reactionUpdated", handleReactionsUpdate);
-    s.on("messageEdited", handleMessageEdited);
-
-    return () => {
-      s.off("receiveMessage", handleReceive);
-      s.off("messageAck", handleAck);
-      s.off("connect");
-      s.off("disconnect");
-      s.off("reactionUpdated", handleReactionsUpdate);
-      s.off("messageEdited", handleMessageEdited);
-      s.close();
-      socketRef.current = null;
-    };
-  }, [userId, SERVER_URL]);
+  return () => {
+    socket.off("receiveMessage", handleReceive);
+    socket.off("messageAck", handleAck);
+    socket.off("reactionUpdated", handleReactionsUpdate);
+    socket.off("messageEdited", handleMessageEdited);
+  };
+}, [socket, userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -241,15 +326,15 @@ export default function Home() {
 
   const handleSendMessage = (content: string, files?: File[]) => {
     if (!userId) return alert("Set your user ID first!");
-    const socket = socketRef.current;
+    //const socket = socketRef.current;
     if (!socket || !socket.connected) return alert("Socket not connected yet.");
     socket.emit("sendMessage", { content, sender_id: userId });
   };
 
-  const handleJoin = () => {
-    if (!tempUserId.trim()) return alert("Please enter a valid ID");
-    setUserId(tempUserId.trim());
-  };
+  // const handleJoin = () => {
+  //   if (!tempUserId.trim()) return alert("Please enter a valid ID");
+  //   setUserId(tempUserId.trim());
+  // };
 
 
   // Edit flow: when user clicks edit, we load content into MessageInput
@@ -271,7 +356,7 @@ function handleSaveEdit(
   newContent: string,
   files?: File[]
 ) {
-  const socket = socketRef.current;
+  // const socket = socketRef.current;
 
   // optimistic update locally
   setMessages((prev) =>
@@ -298,7 +383,7 @@ function handleSaveEdit(
   }
 
   function addEmojiToMessage(messageId: string | number, emoji: any) {
-    const socket = socketRef.current;
+    //const socket = socketRef.current;
     if (!socket) return setShowEmojiPickerFor(null);
     const selectedEmoji = emoji.native ?? emoji.colons ?? String(emoji);
     setMessages((prev) =>
@@ -331,7 +416,7 @@ function handleSaveEdit(
   }
 
   function toggleReaction(messageId: string | number, emoji: string) {
-    const socket = socketRef.current;
+    //const socket = socketRef.current;
     if (!socket) return;
 
     setMessages((prev) =>
@@ -412,7 +497,7 @@ function handleSaveEdit(
 
   function deleteMessage(messageId: string) {
     if (!confirm("Delete this message?")) return;
-    const socket = socketRef.current;
+    //const socket = socketRef.current;
     if (!socket) return;
     socket.emit("deleteMessage", { id: messageId });
     setMessages((prev) =>

@@ -210,3 +210,13 @@
     margin: 2rem 0;
   }
 }
+
+.custom_drop_trigger{
+    position: absolute;
+    top: 25px;
+    right: 40px;
+    transform: translatey(-50%);
+    button{
+      padding: 0 !important;
+    }
+}

@@ -36,22 +36,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const fetchData = async () => {
       try {
         // ✅ Channels
-        const ch = await axios.get(`${process.env.NEXT_PUBLIC_SERVER_URL}/channels`, {
-  withCredentials: true,
-});
+        const ch = await axios.get(
+          `${process.env.NEXT_PUBLIC_SERVER_URL}/channels`,
+          {
+            withCredentials: true,
+          }
+        );
 
         setChannels(
           ch.data.map((c: any) => ({
             title: c.name,
-            url: `/channels/${c.id}`,
+            url: `/channel/${c.id}`,
           }))
         );
 
         // ✅ Users
-        const us = await axios.get(`${process.env.NEXT_PUBLIC_SERVER_URL}/users`, {
-  withCredentials: true,
-});
-
+        const us = await axios.get(
+          `${process.env.NEXT_PUBLIC_SERVER_URL}/users`,
+          {
+            withCredentials: true,
+          }
+        );
 
         setUsers(
           us.data.map((u: any) => ({
@@ -68,6 +73,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     fetchData();
   }, []);
+
+  const handleAddChannel = () => {
+alert("Open channel creation modal");
+}
+
+const handleAddDM = () => {
+  alert("Open direct message creation modal");
+}
 
   const data = {
     user: {
@@ -87,12 +100,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         icon: SquareTerminal,
         isActive: true,
         items: channels,
+         onAdd: handleAddChannel,
       },
       {
         title: "Direct Messages",
         url: "#",
         icon: Bot,
         items: users,
+        onAdd: handleAddDM,
       },
       {
         title: "Apps & Docs",
