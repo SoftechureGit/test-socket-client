@@ -72,8 +72,15 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
+export type UserType = {
+  id: string;
+  name: string;
+  email: string;
+  avatar_url?: string;
+};
+
 type AuthContextType = {
-  userId: string | null;
+  user: UserType | null;
   isOnline: boolean;
   socket: Socket | null;
 };
@@ -81,17 +88,16 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [userId, setUserId] = useState<string | null>(null);
+  const [user, setUser] = useState<UserType | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (socketRef.current) return; // 🔒 prevent duplicate connection
+    if (socketRef.current) return; // prevent duplicate connection
 
     const socket = io(process.env.NEXT_PUBLIC_SERVER_URL!, {
       path: "/socket.io",
-      withCredentials: true,
-      auth: { userId },
+      withCredentials: true, // ✅ cookies sent
       transports: ["websocket"],
     });
 
@@ -101,13 +107,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setIsOnline(true);
     });
 
-    socket.on("disconnect", () => {
-      setIsOnline(false);
-      setUserId(null);
+    socket.on("auth-success", ({ user }) => {
+      setUser(user); // ✅ full user object
     });
 
-    socket.on("auth-success", ({ userId }) => {
-      setUserId(String(userId));
+    socket.on("disconnect", () => {
+      setIsOnline(false);
+      setUser(null);
     });
 
     socket.on("connect_error", (err) => {
@@ -124,7 +130,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <AuthContext.Provider
       value={{
-        userId,
+        user,
         isOnline,
         socket: socketRef.current,
       }}
@@ -139,3 +145,4 @@ export const useAuth = () => {
   if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
   return ctx;
 };
+

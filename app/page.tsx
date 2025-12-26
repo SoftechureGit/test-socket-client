@@ -38,7 +38,9 @@ export default function Home() {
   // const [tempUserId, setTempUserId] = useState<string>("");
   // const [connected, setConnected] = useState(false);
   // const socketRef = useRef<Socket | null>(null);
-const { socket, userId, isOnline } = useAuth();
+const { socket, user, isOnline } = useAuth();
+const userId = user?.id;
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [hoveredId, setHoveredId] = useState<string | number | null>(null);
   const SERVER_URL =

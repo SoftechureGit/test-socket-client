@@ -26,13 +26,13 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import CreateModal from "@/components/modals/CreateNew";
-
+import { useAuth } from "@/components/context/userId_and_connection/provider";
 // const API_URL = process.env.NEXT_PUBLIC_SERVER_URL;
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [channels, setChannels] = React.useState<any[]>([]);
   const [users, setUsers] = React.useState<any[]>([]);
-
+  const { user } = useAuth();
   const [modalOpen, setModalOpen] = React.useState(false);
 const [modalType, setModalType] = React.useState<"channel" | "dm">("channel");
 
@@ -92,11 +92,7 @@ const handleAddDM = () => {
 };
 
   const data = {
-    user: {
-      name: "shadcn",
-      email: "m@example.com",
-      avatar: "/avatars/shadcn.jpg",
-    },
+    user: user,
     teams: [
       { name: "Acme Inc", logo: GalleryVerticalEnd, plan: "Enterprise" },
       { name: "Acme Corp.", logo: AudioWaveform, plan: "Startup" },
@@ -149,7 +145,7 @@ const handleAddDM = () => {
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser user={data.user} />
+        { user && <NavUser user={data.user} />}
       </SidebarFooter>
 
       <SidebarRail />

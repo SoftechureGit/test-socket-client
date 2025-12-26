@@ -25,7 +25,7 @@ export default function CreateModal({ open, onClose, type }: Props) {
   const [search, setSearch] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
-const {  userId } = useAuth();
+const {  user } = useAuth();
 
 useEffect(() => {
   if (!isPrivate) {
@@ -33,6 +33,10 @@ useEffect(() => {
     setSearch("");
   }
 }, [isPrivate]);
+
+useEffect(() => {
+  console.log("Current user:", user);
+}, [user]);
 
 // Fetch users from the backend
 useEffect(() => {
@@ -43,7 +47,7 @@ useEffect(() => {
       const data: User[] = await res.json();
 
       const filtered = data.filter(
-        (user) => String(user.id) !== String(userId)
+        (user) => String(user.id) !== String(user.id)
       );
 
       setUsers(filtered);
@@ -53,7 +57,7 @@ useEffect(() => {
   };
 
   if (type === "dm" || isPrivate) fetchUsers();
-}, [type, isPrivate, userId]);
+}, [type, isPrivate, user ]);
 
 
   const filteredUsers = users.filter((u) =>

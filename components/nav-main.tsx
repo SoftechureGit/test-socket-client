@@ -21,7 +21,7 @@ import {
 
 import { FaLock } from "react-icons/fa";
 import { FaHashtag } from "react-icons/fa";
-
+import Link from "next/link"
 
 type NavItem = {
   title: string
@@ -88,7 +88,7 @@ export function NavMain({ items }: { items: NavItem[] }) {
                       null
                       }
                       <SidebarMenuSubButton asChild>
-                        <a href={sub.url}>{sub.title}</a>
+                        <Link href={sub.url}>{sub.title}</Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}
