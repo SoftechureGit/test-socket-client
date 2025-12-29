@@ -55,7 +55,7 @@ export default function MessageInput({ onSend, editingMessageId = null, editingI
     editor?.chain().focus().setImage({ src: data.url }).run();
   }
 };
-const removeImageFromEditor = (src) => {
+const removeImageFromEditor = (src : any) => {
   if (!editor) return;
 
   const { state, view } = editor;
@@ -76,7 +76,7 @@ const removeImageFromEditor = (src) => {
   }
 };
 
-const deleteUploadedFile = async (index) => {
+const deleteUploadedFile = async (index : any) => {
   const file = uploadedFiles[index];
   if (!file) return;
 
