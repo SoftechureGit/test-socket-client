@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const PROTECTED_ROUTES = ["/chat", "/channels", "/messages"];
+const PROTECTED_ROUTES = ["/", "/channels", "/messages"];
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -25,5 +25,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/chat/:path*", "/channels/:path*", "/messages/:path*"],
+  matcher: ["/:path*", "/channels/:path*", "/messages/:path*"],
 };
