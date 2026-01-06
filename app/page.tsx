@@ -534,7 +534,7 @@ const newUsers = entry.users.filter((u): u is string => u != null && u !== userI
             return (
               <div
                 key={msgId}
-                className={`hover:bg-gray-50 p-1 rounded-xl relative flex items-center gap-3 ${
+                className={`hover:bg-gray-50 px-1 rounded-xl relative flex items-center gap-3 ${
                   msg.self ? "justify-end" : "justify-start"
                 }`}
                 onMouseEnter={() => setHoveredId(msgId)}
@@ -545,15 +545,13 @@ const newUsers = entry.users.filter((u): u is string => u != null && u !== userI
                 )}
 
                 <div
-                  className={`p-1 rounded-xl break-words flex  ${
-                    msg.self ? "flex-row-reverse" : "flex-row"
-                  }  gap-2 items-center relative `}
+                  className={`px-1 rounded-xl break-words flex  ${
+                    msg.self ? "flex-col-reverse" : "flex-col"
+                  }  gap-2 relative `}
                 >
                   <div className="relative">
                     <div
-                      className={`rounded-md p-2 break-words w-fit ${
-                        msg.self ? "bg-black text-white" : "bg-zinc-200"
-                      }`}
+                      className="rounded-md p-1 break-words w-fit "
                     >
                       <div
                         className="leading-none"
@@ -567,16 +565,17 @@ const newUsers = entry.users.filter((u): u is string => u != null && u !== userI
                   {msg.reactions && msg.reactions.length > 0 && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <div className="flex gap-1 flex-wrap whitespace-nowrap cursor-pointer">
+                        <div className="flex gap-1 flex-wrap   whitespace-nowrap cursor-pointer">
                           {msg.reactions.map((r, idx) => (
                             <span
                               key={idx}
                               onClick={() =>  msg.id != null && toggleReaction(msg.id, r.emoji)}
-                              className="text-sm px-2 leading-none py-1 bg-gray-200 rounded-full flex items-center gap-1 border border-black"
+                              className="text-sm px-2 leading-none py-1 bg-gray-200 rounded-full flex  gap-1 border border-black"
                             >
                               {r.emoji} {r.count <= 1 ? "" : r.count}
                             </span>
                           ))}
+
                         </div>
                       </TooltipTrigger>
 
@@ -601,7 +600,7 @@ const newUsers = entry.users.filter((u): u is string => u != null && u !== userI
 
                   {msg.created_at && (
                     <div
-                      className={`text-[10px] top-[50%] translate-y-[-50%] opacity-60 absolute flex-col ${
+                      className={`text-[10px] top-1 opacity-60 absolute flex-col ${
                         msg.self
                           ? "right-0 translate-x-[calc(100%+4px)]"
                           : "left-0 -translate-x-[calc(100%+4px)]"
@@ -615,7 +614,7 @@ const newUsers = entry.users.filter((u): u is string => u != null && u !== userI
 
                       {/* 👇 Show "edited" only if the message was edited */}
                       {msg.updated_at && msg.updated_at !== msg.created_at && (
-                        <span className="italic opacity-60 ml-1">(edited)</span>
+                        <span className="italic opacity-60 ml-1 line">(edited)</span>
                       )}
                     </div>
                   )}
