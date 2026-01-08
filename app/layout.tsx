@@ -1,17 +1,17 @@
-  import { AuthProvider } from "@/components/context/userId_and_connection/provider"
-  import { AppSidebar } from "@/components/app-sidebar"
-  import AppNavbar from "@/components/app-navbar"
-  import ButtonGroup from "@/components/ui/button-group";
+  import { AuthProvider } from "@/app/components/context/userId_and_connection/provider"
+  import { AppSidebar } from "@/app/components/app-sidebar"
+  import AppNavbar from "@/app/components/app-navbar"
+  import ButtonGroup from "@/app/components/ui/button-group";
   import {
     SidebarInset,
     SidebarProvider
-  } from "@/components/ui/sidebar"
+  } from "@/app/components/ui/sidebar"
 
   import type { Metadata } from "next";
   import { Geist, Geist_Mono } from "next/font/google";
   import "./globals.css";
-  import { RightSidebar as UtilitySidebar } from "@/components/utilitysidebar";
-  import { Toaster } from "@/components/ui/sonner"
+  import { RightSidebar as UtilitySidebar } from "@/app/components/utilitysidebar";
+  import { Toaster } from "@/app/components/ui/sonner"
 
   const geistSans = Geist({
     variable: "--font-geist-sans",
