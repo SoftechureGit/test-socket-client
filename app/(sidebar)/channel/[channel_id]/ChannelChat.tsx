@@ -268,12 +268,16 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
       socket.off("messageEdited", handleMessageEdited);
     };
   }, [socket, userId]);
-
   useEffect(() => {
+    const token = localStorage.getItem("access_token");
     console.log("messages api call");
     if (!userId || !channelId) return;
     fetch(`${SERVER_URL}/channels/${channelId}/messages`, {
-      credentials: "include", // ✅ REQUIRED
+      credentials: "include", // ✅ REQUIRED,
+       headers: {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  },
     })
       .then((res) => res.json())
       .then((data: any[]) => {
