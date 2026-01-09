@@ -673,7 +673,7 @@ const handleSendMessage = async (content: string, files?: any[]) => {
           className="flex-1 py-2 bg-[var(--sidebar)]"
           style={{ scrollbarGutter: "stable" }}
         >
-          {messages.map((msg, index) => {
+          {messages?.map((msg, index) => {
             const msgId = String(msg.id);
             const prev = messages[index - 1];
 const showAvatar =
@@ -761,7 +761,7 @@ const showAvatar =
                           __html: DOMPurify.sanitize(msg.content),
                         }}
                       />
-                      {msg.files?.length > 0 && (
+                     {msg.files?.length  ? (
                         <div className="flex gap-2 mt-2 aspect-square h-[100px] w-[100px] flex-wrap">
                           {msg.files.map((file, i) => (
                             <a key={i} href={file.url} target="_blank">
@@ -775,7 +775,7 @@ const showAvatar =
                             </a>
                           ))}
                         </div>
-                      )}
+                      ):null}
 
                       {msg.reactions && msg.reactions.length > 0 && (
                         <Tooltip>

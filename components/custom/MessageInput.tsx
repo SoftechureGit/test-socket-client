@@ -10,21 +10,28 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Highlight from "@tiptap/extension-highlight";
 import Color from "@tiptap/extension-color";
 import CharacterCount from "@tiptap/extension-character-count";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/app/components/ui/popover";
 import Picker from "@emoji-mart/react";
 import { VscMention } from "react-icons/vsc";
 import { FaListUl, FaListOl } from "react-icons/fa6";
-import MentionDropdown from "@/components/ui/mention";
+import MentionDropdown from "@/app/components/ui/mention";
 import { IoMdSend } from "react-icons/io";
 import { CiFileOn } from "react-icons/ci";
 import { CiCirclePlus } from "react-icons/ci";
 import { FiUnderline } from "react-icons/fi";
 import { FiPlus } from "react-icons/fi";
+type UploadedFile = {
+  name: string;
+  url: string;
+  type: string;
+  path: string;
+  size: number;
+};
 
 const getFileKind = (type: string, name: string) => {
   if (type.startsWith("image/")) return "image";
@@ -60,9 +67,7 @@ export default function MessageInput({
 
   // file upload and delete
 
-  const [uploadedFiles, setUploadedFiles] = useState<
-    { name: string; url: string; type: string }[]
-  >([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   const removeImageFromEditor = (src: any) => {
     if (!editor) return;
