@@ -29,7 +29,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (socketRef.current) return; // prevent duplicate connection
 
     const socket = io(process.env.NEXT_PUBLIC_SERVER_URL!, {
-      path: "/socket.io",
       withCredentials: true, // ✅ cookies sent
       transports: ["websocket"],
     });
