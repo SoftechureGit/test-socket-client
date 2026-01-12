@@ -310,7 +310,7 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
               updated_at: msg.updated_at ?? null,
               reactions,
               avatar_url: msg.avatar_url ?? null,
-              pinned: msg.pinned === 1 || msg.pinned === true,
+              pinned: msg.pinned === 1 || msg.pinned === true || msg.pinned === "1",
             };
           })
           .sort((a, b) => {
