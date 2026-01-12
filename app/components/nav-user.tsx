@@ -14,7 +14,6 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/app/components/ui/avatar"
-import apiFetch from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,10 +36,10 @@ import { UserType } from "@/app/components/context/userId_and_connection/provide
 
     const handleLogout = async () => {
       try {
-          await apiFetch("/api/auth/logout", {
-            method: "POST",
-            credentials: "include",
-          })
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "include",
+        })
 
         window.location.href = "/welcome"
       } catch (err) {

@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import apiFetch from "@/lib/api";
 import { useAuth } from "@/app/components/context/userId_and_connection/provider";
 import MessageInput from "@/app/components/custom/MessageInput";
 import ChatHover from "@/app/components/chat-hover";
@@ -140,7 +139,7 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
   useEffect(() => {
   if (!channelId) return;
 
-  apiFetch(`${SERVER_URL}/channels/${channelId}`, { credentials: "include" })
+  fetch(`${SERVER_URL}/channels/${channelId}`, { credentials: "include" })
     .then(res => res.json())
     .then(data => {
       if (data.channel?.is_dm) {
@@ -273,7 +272,7 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
     const token = localStorage.getItem("access_token");
     console.log("messages api call");
     if (!userId || !channelId) return;
-    apiFetch(`${SERVER_URL}/channels/${channelId}/messages`, {
+    fetch(`${SERVER_URL}/channels/${channelId}/messages`, {
       credentials: "include", // ✅ REQUIRED,
        headers: {
     "Content-Type": "application/json",
@@ -374,7 +373,7 @@ const handleSendMessage = async (content: string, files?: any[]) => {
       const formData = new FormData();
       files.forEach((f: File) => formData.append("files", f));
 
-      const res = await apiFetch(`${SERVER_URL}/upload`, {
+      const res = await fetch(`${SERVER_URL}/upload`, {
         method: "POST",
         credentials: "include",
         body: formData,

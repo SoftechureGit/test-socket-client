@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import apiFetch from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +37,7 @@ export default function Channelmambers({
 
     setLoading(true);
 
-    apiFetch(`/api/channels/${channelId}/members`)
+    fetch(`/api/channels/${channelId}/members`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch members");
         return res.json();

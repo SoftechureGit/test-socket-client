@@ -20,7 +20,6 @@ import { Input } from "@/app/components/ui/input";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import apiFetch from "@/lib/api";
 
 export function SignupForm({ className, ...props }: React.ComponentProps<"div">) {
   const router = useRouter();
@@ -76,7 +75,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
     setLoading(true);
 
     try {
-      const response = await apiFetch(`/api/auth/register`, {
+      const response = await fetch(`/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
