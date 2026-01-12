@@ -50,7 +50,7 @@ useEffect(() => {
 
   const fetchUsers = async () => {
     try {
-        const res = await api.get(`/api/users/search`, {
+        const res = await api.get(`/users/search`, {
           params: { q: debouncedSearch, exclude: user?.id },
           signal: controller.signal,
         });
@@ -117,7 +117,7 @@ const handleSubmit = async () => {
     if (type === "channel") {
       if (!channelName.trim()) return;
 
-        await api.post("/api/channels", {
+        await api.post("/channels", {
           name: channelName,
           isPrivate,
           memberIds: isPrivate ? selectedUsers.map((u) => Number(u.id)) : [],
@@ -133,7 +133,7 @@ const handleSubmit = async () => {
 
       const otherUserId = selectedUsers[0].id;
 
-        const res = await api.post(`/api/dm/with/${otherUserId}`);
+        const res = await api.post(`/dm/with/${otherUserId}`);
 
         const data = res.data;
 

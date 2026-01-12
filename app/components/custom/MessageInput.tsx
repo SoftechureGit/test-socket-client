@@ -66,7 +66,7 @@ export default function MessageInput({
     // Upload to server
     const formData = new FormData();
     formData.append("file", file);
-    const res = await api.post("/api/upload", formData);
+    const res = await api.post("/upload", formData);
     const data = res.data;
 
     if (data.url) {
@@ -111,7 +111,7 @@ export default function MessageInput({
     if (!file) return;
 
     try {
-      const res = await api.post("/api/delete-file", { path: file.url.replace(/^\/?/, "") });
+      const res = await api.post("/delete-file", { path: file.url.replace(/^\/?/, "") });
       const data = res.data;
 
       if (data.success) {
@@ -228,7 +228,7 @@ export default function MessageInput({
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await api.post("/api/upload", formData);
+      const res = await api.post("/upload", formData);
       const data = res.data;
 
       setUploadedFiles((prev) => [

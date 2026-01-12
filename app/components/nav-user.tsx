@@ -37,7 +37,7 @@ import api from "@/lib/axios";
 
     const handleLogout = async () => {
       try {
-        await api.post("/api/auth/logout");
+        await api.post("/auth/logout");
 
         window.location.href = "/welcome"
       } catch (err) {

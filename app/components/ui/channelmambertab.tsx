@@ -39,7 +39,7 @@ export default function Channelmambers({
     setLoading(true);
 
     api
-      .get(`/api/channels/${channelId}/members`)
+      .get(`/channels/${channelId}/members`)
       .then((res) => setMembers(res.data))
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));

@@ -76,7 +76,7 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
 
     try {
       // Use axios instance which injects Authorization header from localStorage
-      const res = await (await import("@/lib/axios")).default.post(`/api/auth/register`, {
+      const res = await (await import("@/lib/axios")).default.post(`/auth/register`, {
         external_id: null,
         name: formData.name,
         email: formData.email,
