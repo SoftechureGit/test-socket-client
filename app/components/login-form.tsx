@@ -35,7 +35,7 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
     setLoading(true);
 
     try {
-      const res = await api.post(`/api/auth/login`, { email, password });
+      const res = await api.post(`/auth/login`, { email, password });
       const data = res.data;
 
       // ✅ Set auth_token cookie client-side for middleware
