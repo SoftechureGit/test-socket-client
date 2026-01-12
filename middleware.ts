@@ -24,8 +24,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = localStorage.getItem("access_token"); // or from memory
-;
+  const token = request.cookies.get('access_token')?.value;
 
   // Redirect unauthenticated user visiting protected routes
   if (PROTECTED_ROUTES.some(route => pathname.startsWith(route)) && !token) {
