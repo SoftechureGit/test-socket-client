@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import axios from "axios";
+import api from "@/lib/axios";
 import {
   AudioWaveform,
   BookOpen,
@@ -42,12 +42,7 @@ const [modalType, setModalType] = React.useState<"channel" | "dm">("channel");
     const fetchData = async () => {
       try {
         // ✅ Channels
-        const ch = await axios.get(
-          `/api/channels?get_dms=false`,
-          {
-            withCredentials: true,
-          }
-        );
+        const ch = await api.get(`/channels?get_dms=false`);
         setChannels(
           ch.data.map((c: any) => ({
             title: c.name,
@@ -58,8 +53,8 @@ const [modalType, setModalType] = React.useState<"channel" | "dm">("channel");
         );
 
         // ✅ Users
-        const dm = await axios.get(`/api/dm`, { withCredentials: true });
-
+        const dm = await api.get(`/dm`);
+        
 setUsers(
   dm.data.map((d: any) => ({
     title: d.name,
