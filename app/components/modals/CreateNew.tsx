@@ -1,3 +1,4 @@
+import api from "@/lib/axios";
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/app/components/ui/dialog";
@@ -50,16 +51,12 @@ useEffect(() => {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(
-        `/api/users/search?q=${encodeURIComponent(
-          debouncedSearch
-        )}&exclude=${user?.id}`,
-        { signal: controller.signal }
-      );
+        const res = await api.get(`/api/users/search`, {
+          params: { q: debouncedSearch, exclude: user?.id },
+          signal: controller.signal,
+        });
 
-      if (!res.ok) throw new Error("Search failed");
-      const data = await res.json();
-      setUsers(data);
+        setUsers(res.data);
     } catch (err: any) {
       if (err.name !== "AbortError") {
         console.error("User search error", err);
@@ -121,16 +118,11 @@ const handleSubmit = async () => {
     if (type === "channel") {
       if (!channelName.trim()) return;
 
-      await fetch("/api/channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
+        await api.post("/api/channels", {
           name: channelName,
           isPrivate,
           memberIds: isPrivate ? selectedUsers.map((u) => Number(u.id)) : [],
-        }),
-      });
+        });
 
       resetAndClose();
       return;
@@ -142,14 +134,11 @@ const handleSubmit = async () => {
 
       const otherUserId = selectedUsers[0].id;
 
-      const res = await fetch(`/api/dm/with/${otherUserId}`, {
-        method: "POST",
-        credentials: "include",
-      });
+        const res = await api.post(`/api/dm/with/${otherUserId}`);
 
-      const data = await res.json();
+        const data = res.data;
 
-      if (!data.dm_id) throw new Error("Failed to create DM");
+        if (!data.dm_id) throw new Error("Failed to create DM");
 
       // ✅ Redirect to REAL DM channel
       window.location.href = `/dm/${data.dm_id}`;

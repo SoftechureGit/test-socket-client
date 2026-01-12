@@ -30,16 +30,14 @@ import {
   useSidebar,
 } from "@/app/components/ui/sidebar"
 import { UserType } from "@/app/components/context/userId_and_connection/provider";
+import api from "@/lib/axios";
 
   export function NavUser({  user}: {  user: UserType }) {
     const { isMobile } = useSidebar()
 
     const handleLogout = async () => {
       try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          credentials: "include",
-        })
+        await api.post("/api/auth/logout");
 
         window.location.href = "/welcome"
       } catch (err) {

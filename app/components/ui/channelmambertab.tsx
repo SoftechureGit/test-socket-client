@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/app/components/ui/dialog";
 import { Button } from "@/app/components/ui/button";
+import api from "@/lib/axios";
 
 type Member = {
   id: number;
@@ -37,12 +38,9 @@ export default function Channelmambers({
 
     setLoading(true);
 
-    fetch(`/api/channels/${channelId}/members`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch members");
-        return res.json();
-      })
-      .then((data) => setMembers(data))
+    api
+      .get(`/api/channels/${channelId}/members`)
+      .then((res) => setMembers(res.data))
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   }, [channelId, isOpen]);

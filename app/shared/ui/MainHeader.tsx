@@ -4,6 +4,7 @@ import { useAuth } from "@/app/components/context/userId_and_connection/provider
 import ButtonGroup from "@/app/components/ui/button-group";
 import TabsModalDemo from "@/app/components/ui/groupmember";
 import { useEffect, useState } from "react";
+import api from "@/lib/axios";
 import { FaHeadphones } from "react-icons/fa6"
 import { FaRegBell } from "react-icons/fa";
 import { IoSearchOutline } from "react-icons/io5";
@@ -50,16 +51,8 @@ export default function MainHeader({ id, type, dmUser }: MainHeaderProps) {
 
     const fetchChannelDetails = async () => {
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_SERVER_URL}/channels/${id}`,
-          {
-            credentials: "include", // important if you use cookies
-          }
-        );
-
-        if (!res.ok) throw new Error("Failed to fetch channel");
-
-        const data = await res.json();
+        const res = await api.get(`/channels/${id}`);
+        const data = res.data;
         setChannel(data.channel);
         setMembers(data.members);
       } catch (err) {

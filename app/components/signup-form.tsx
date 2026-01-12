@@ -75,19 +75,16 @@ export function SignupForm({ className, ...props }: React.ComponentProps<"div">)
     setLoading(true);
 
     try {
-      const response = await fetch(`/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          external_id: null,           // optional
-          name: formData.name,
-          email: formData.email,
-          password: formData.password, // 👈 send password to backend
-          avatar_url: formData.avatar_url || null,
-        }),
+      // Use axios instance which injects Authorization header from localStorage
+      const res = await (await import("@/lib/axios")).default.post(`/api/auth/register`, {
+        external_id: null,
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        avatar_url: formData.avatar_url || null,
       });
 
-      const data = await response.json();
+      const data = res.data;
 
       if (!response.ok) {
         // setErrors({ general: data.error || "Registration failed." });

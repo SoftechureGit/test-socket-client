@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
+import api from "@/lib/axios";
 
 export default function ExternalLoginPage({
   params,
@@ -16,16 +17,14 @@ export default function ExternalLoginPage({
   useEffect(() => {
     // console.log("External login with token:", login_token);
     async function login() {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/external/external-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: login_token }),
-        credentials: "include",
-      });
-
-      if (res.ok) {
-        router.replace("/");
-      } else {
+      try {
+        const res = await api.post(`/external/external-session`, { token: login_token });
+        if (res.status >= 200 && res.status < 300) {
+          router.replace("/");
+        } else {
+          router.replace("/login");
+        }
+      } catch (err) {
         router.replace("/login");
       }
     }

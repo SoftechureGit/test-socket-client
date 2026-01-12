@@ -25,6 +25,7 @@ import { CiFileOn } from "react-icons/ci";
 import { CiCirclePlus } from "react-icons/ci";
 import { FiUnderline } from "react-icons/fi";
 import { FiPlus } from "react-icons/fi";
+import api from "@/lib/axios";
 
 const getFileKind = (type: string, name: string) => {
   if (type.startsWith("image/")) return "image";
@@ -65,8 +66,8 @@ export default function MessageInput({
     // Upload to server
     const formData = new FormData();
     formData.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    const data = await res.json();
+    const res = await api.post("/api/upload", formData);
+    const data = res.data;
 
     if (data.url) {
       // Add to uploadedFiles state
@@ -110,13 +111,8 @@ export default function MessageInput({
     if (!file) return;
 
     try {
-      const res = await fetch("/api/delete-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: file.url.replace(/^\/?/, "") }),
-      });
-
-      const data = await res.json();
+      const res = await api.post("/api/delete-file", { path: file.url.replace(/^\/?/, "") });
+      const data = res.data;
 
       if (data.success) {
         setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
@@ -232,12 +228,8 @@ export default function MessageInput({
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
+      const res = await api.post("/api/upload", formData);
+      const data = res.data;
 
       setUploadedFiles((prev) => [
         ...prev,

@@ -25,6 +25,7 @@ import { CiFileOn } from "react-icons/ci";
 import { CiCirclePlus } from "react-icons/ci";
 import { FiUnderline } from "react-icons/fi";
 import { FiPlus } from "react-icons/fi";
+import api from "@/lib/axios";
 type UploadedFile = {
   name: string;
   url: string;
@@ -101,12 +102,8 @@ const insertImageFile = async (file: File) => {
   formData.append("files", file);
 
   try {
-    const res = await fetch(`${SERVER_URL}/upload`, {
-      method: "POST",
-      credentials: "include",
-      body: formData,
-    });
-    const data = await res.json();
+    const res = await api.post(`${SERVER_URL}/upload`, formData);
+    const data = res.data;
     if (!data.success || !Array.isArray(data.files) || data.files.length === 0) {
       console.error("Upload failed:", data);
       return;
@@ -141,12 +138,8 @@ const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
   files.forEach((f) => formData.append("files", f));
 
   try {
-    const res = await fetch(`${SERVER_URL}/upload`, {
-      method: "POST",
-      credentials: "include",
-      body: formData,
-    });
-    const data = await res.json();
+    const res = await api.post(`${SERVER_URL}/upload`, formData);
+    const data = res.data;
     if (!data.success || !Array.isArray(data.files)) {
       console.error("Upload failed:", data);
       e.target.value = "";
@@ -180,13 +173,8 @@ const deleteUploadedFile = async (index: number) => {
   if (!file) return;
 
   try {
-    const res = await fetch(`${SERVER_URL}/upload/delete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ path: file.path }),
-    });
-    const data = await res.json();
+    const res = await api.post(`${SERVER_URL}/upload/delete`, { path: file.path });
+    const data = res.data;
 
     if (data.success) {
       setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
@@ -331,13 +319,8 @@ const deleteUploadedFile = async (index: number) => {
   if (!file) return;
 
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/upload/delete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: file.path }),
-    });
-
-    const data = await res.json();
+    const res = await api.post(`${process.env.NEXT_PUBLIC_SERVER_URL}/upload/delete`, { path: file.path });
+    const data = res.data;
 
     if (data.success) {
       setUploadedFiles((prev) => prev.filter((_, i) => i !== index));

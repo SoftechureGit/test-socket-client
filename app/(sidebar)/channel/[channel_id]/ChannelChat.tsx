@@ -23,6 +23,7 @@ import {
   TooltipTrigger,
 } from "@/app/components/ui/tooltip";
 import { TbPinFilled } from "react-icons/tb";
+import api from "@/lib/axios";
 
 type Reaction = { emoji: string; count: number; users?: string[] };
 type ChatFile = {
@@ -137,19 +138,21 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
   };
 
   useEffect(() => {
-  if (!channelId) return;
+    if (!channelId) return;
 
-  fetch(`${SERVER_URL}/channels/${channelId}`, { credentials: "include" })
-    .then(res => res.json())
-    .then(data => {
-      if (data.channel?.is_dm) {
-        setIsDm(true);
-        setDmOtherUser(data.dm_user); // we will add this from backend
-      } else {
-        setIsDm(false);
-      }
-    });
-}, [channelId]);
+    api
+      .get(`/channels/${channelId}`)
+      .then((res) => {
+        const data = res.data;
+        if (data.channel?.is_dm) {
+          setIsDm(true);
+          setDmOtherUser(data.dm_user);
+        } else {
+          setIsDm(false);
+        }
+      })
+      .catch((err) => console.error(err));
+  }, [channelId]);
 
 
   useEffect(() => {
@@ -269,17 +272,11 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
     };
   }, [socket, userId]);
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
     console.log("messages api call");
     if (!userId || !channelId) return;
-    fetch(`${SERVER_URL}/channels/${channelId}/messages`, {
-      credentials: "include", // ✅ REQUIRED,
-       headers: {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  },
-    })
-      .then((res) => res.json())
+    api
+      .get(`/channels/${channelId}/messages`)
+      .then((r) => r.data)
       .then((data: any[]) => {
         const mapped: ChatMessage[] = data
           .map((msg: any) => {
@@ -373,12 +370,8 @@ const handleSendMessage = async (content: string, files?: any[]) => {
       const formData = new FormData();
       files.forEach((f: File) => formData.append("files", f));
 
-      const res = await fetch(`${SERVER_URL}/upload`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-      const data = await res.json();
+      const res = await api.post(`${SERVER_URL}/upload`, formData);
+      const data = res.data;
       fileMetadata = Array.isArray(data.files) ? data.files : [];
     }
   }
