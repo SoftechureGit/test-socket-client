@@ -26,6 +26,23 @@ import { CiCirclePlus } from "react-icons/ci";
 import { FiUnderline } from "react-icons/fi";
 import { FiPlus } from "react-icons/fi";
 import api from "@/lib/axios";
+import { HiXMark } from "react-icons/hi2";
+
+type UploadedFile = {
+  name: string;
+  url: string;
+  type: string;
+  path: string;
+  size: number;
+};
+type UploadingFile = {
+  id: string;
+  name: string;
+  preview: string; // blob URL
+  progress: number;
+};
+
+
 
 const getFileKind = (type: string, name: string) => {
   if (type.startsWith("image/")) return "image";
@@ -55,31 +72,56 @@ export default function MessageInput({
   const editorRef = useRef<HTMLDivElement>(null);
   // for editor
   const [, forceUpdate] = useState(0);
+  const [uploading, setUploading] = useState<UploadingFile[]>([]);
+  
+  // function CircularProgress({ value }: { value: number }) {
+  //   const radius = 18;
+  //   const stroke = 3;
+  //   const normalizedRadius = radius - stroke * 2;
+  //   const circumference = normalizedRadius * 2 * Math.PI;
+  //   const strokeDashoffset =
+  //     circumference - (value / 100) * circumference;
+  
+  //   return (
+  //     <svg height={radius * 2} width={radius * 2}>
+  //       <circle
+  //         stroke="#e5e7eb"
+  //         fill="transparent"
+  //         strokeWidth={stroke}
+  //         r={normalizedRadius}
+  //         cx={radius}
+  //         cy={radius}
+  //       />
+  //       <circle
+  //         stroke="#3b82f6"
+  //         fill="transparent"
+  //         strokeWidth={stroke}
+  //         strokeDasharray={`${circumference} ${circumference}`}
+  //         style={{ strokeDashoffset, transition: "stroke-dashoffset 0.2s" }}
+  //         r={normalizedRadius}
+  //         cx={radius}
+  //         cy={radius}
+  //       />
+  //       <text
+  //         x="50%"
+  //         y="50%"
+  //         dominantBaseline="middle"
+  //         textAnchor="middle"
+  //         fontSize="9"
+  //         fill="#111"
+  //       >
+  //         {value}%
+  //       </text>
+  //     </svg>
+  //   );
+  // }
+  
+  // put SERVER_URL at top of file (or use NEXT_PUBLIC_SERVER_URL directly)
+  const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://192.168.0.113:5000";
 
   // file upload and delete
 
-  const [uploadedFiles, setUploadedFiles] = useState<
-    { name: string; url: string; type: string }[]
-  >([]);
-
-  const insertImageFile = async (file: File) => {
-    // Upload to server
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await api.post("/upload", formData);
-    const data = res.data;
-
-    if (data.url) {
-      // Add to uploadedFiles state
-      setUploadedFiles((prev) => [
-        ...prev,
-        { name: file.name, url: data.url, type: file.type },
-      ]);
-
-      // Insert into TipTap editor
-      editor?.chain().focus().setImage({ src: data.url }).run();
-    }
-  };
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   const removeImageFromEditor = (src: any) => {
     if (!editor) return;
@@ -106,28 +148,170 @@ export default function MessageInput({
     }
   };
 
-  const deleteUploadedFile = async (index: any) => {
-    const file = uploadedFiles[index];
-    if (!file) return;
+
+const insertImageFile = async (file: File) => {
+  console.log("Inserting image file:", file);
+  if (!editor) return;
+
+  const formData = new FormData();
+  formData.append("files", file);
+
+  try {
+    const res = await api.post(`${SERVER_URL}/upload`, formData);
+    const data = res.data;
+
+    if (!data.success || !Array.isArray(data.files) || data.files.length === 0) {
+      console.error("Upload failed:", data);
+      return;
+    }
+
+    const uploaded = data.files[0];
+    setUploadedFiles((prev) => [...prev, uploaded]);
+
+    // Insert into editor once URL is ready
+    if (uploaded.url && !editor.isDestroyed) {
+      editor.chain().focus().setImage({ src: uploaded.url }).run();
+    }
+  } catch (err) {
+    console.error("insertImageFile upload error", err);
+  }
+};
+
+
+
+// const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+//   if (!e.target.files) return;
+//   const files = Array.from(e.target.files);
+
+//   // batch upload all selected files in one request
+//   const formData = new FormData();
+//   files.forEach((f) => formData.append("files", f));
+
+//   try {
+//     const res = await api.post(`${SERVER_URL}/upload`, formData);
+//     const data = res.data;
+//     if (!data.success || !Array.isArray(data.files)) {
+//       console.error("Upload failed:", data);
+//       e.target.value = "";
+//       return;
+//     }
+
+//     // Append all returned file metadata
+//     setUploadedFiles((prev) => [
+//       ...prev,
+//       ...data.files.map((f: any) => ({
+//         name: f.name,
+//         url: f.url,
+//         type: f.type,
+//         path: f.path,
+//         size: f.size,
+//       })),
+//     ]);
+//   } catch (err) {
+//     console.error("Upload error:", err);
+//   }
+
+//   // Close upload menu
+//   window.dispatchEvent(new Event("closeFileUpload"));
+
+//   // Reset input
+//   e.target.value = "";
+// };
+
+const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (!e.target.files) return;
+  window.dispatchEvent(new Event("closeFileUpload"));
+
+  const files = Array.from(e.target.files);
+
+  for (const file of files) {
+    const id = crypto.randomUUID();
+    const preview = URL.createObjectURL(file);
+    setUploading((prev) => [...prev, { id, name: file.name, preview, progress: 0 }]);
+
+    const formData = new FormData();
+    formData.append("files", file);
 
     try {
-      const res = await api.post("/delete-file", { path: file.url.replace(/^\/?/, "") });
-      const data = res.data;
+      const res = await api.post(`${SERVER_URL}/upload`, formData, {
+        onUploadProgress: (progressEvent) => {
+          const percent = Math.round(
+            (progressEvent.loaded * 100) / (progressEvent.total || 1)
+          );
 
-      if (data.success) {
-        setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+          setUploading((prev) =>
+            prev.map((u) => (u.id === id ? { ...u, progress: percent } : u))
+          );
+        },
+      });
 
-        // Remove image from editor
-        removeImageFromEditor(file.url);
-      } else {
-        alert(data.message || "Failed to delete file");
-      }
+      const uploaded = res.data.files[0];
+      setUploadedFiles((prev) => [...prev, uploaded]);
     } catch (err) {
-      console.error(err);
-      alert("Error deleting file");
+      console.error("Upload error:", err);
+    } finally {
+      setUploading((prev) => prev.filter((u) => u.id !== id));
     }
-  };
+  }
 
+  e.target.value = "";
+};
+
+
+
+
+const deleteUploadedFile = async (index: number) => {
+  const file = uploadedFiles[index];
+  if (!file) return;
+
+  try {
+    const res = await api.post(`${SERVER_URL}/upload/delete`, { path: file.path });
+    const data = res.data;
+
+    if (data.success) {
+      setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+      // If the file was also inserted in editor, remove it
+      if (file.url) removeImageFromEditor(file.url);
+    } else {
+      console.error("Delete failed:", data);
+    }
+  } catch (err) {
+    console.error("Delete error:", err);
+  }
+};
+
+
+  //mention
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 1 });
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "@") {
+        const selection = window.getSelection();
+        if (!selection?.rangeCount) return;
+
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+
+        setMentionPosition({
+          top: rect.top + 6,
+          left: rect.left,
+        });
+
+        setMentionOpen(true);
+      }
+    };
+
+    window.addEventListener("keyup", handleKey);
+    return () => window.removeEventListener("keyup", handleKey);
+  }, []);
+
+  const handleMentionSelect = (name: string) => {
+    editor?.chain().focus().insertContent(`${name} `).run();
+    setMentionOpen(false);
+  };
+  //mention end
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -197,65 +381,54 @@ export default function MessageInput({
     editorRef.current.scrollTop = editorRef.current.scrollHeight;
   }, [editor?.getText()]);
 
-  const handleSend = () => {
-    if (!editor) return;
-    const html = editor.getHTML();
-    const isEmpty = html.trim() === "<p></p>";
-    if (isEmpty && attachedFiles.length === 0) return;
+ const handleSend = () => {
+  if (!editor) return;
+  const html = editor.getHTML();
+  const isEmpty = html.trim() === "<p></p>";
+  if (isEmpty && uploadedFiles.length === 0) return; // use uploadedFiles, not attachedFiles
 
-    // If in edit mode, call onSaveEdit instead of onSend
-    if (editingMessageId && onSaveEdit) {
-      onSaveEdit(editingMessageId, html, attachedFiles);
-    } else {
-      onSend(html, attachedFiles);
-    }
+  // If in edit mode, call onSaveEdit instead of onSend
+  if (editingMessageId && onSaveEdit) {
+    onSaveEdit(editingMessageId, html, uploadedFiles as any);
+  } else {
+    // send message content + uploaded file metadata
+    onSend(html, uploadedFiles as any);
+  }
 
-    // After sending or saving, clear editor and files
-    editor.commands.clearContent();
-    setAttachedFiles([]);
-  };
+  // After sending or saving, clear editor and files
+  editor.commands.clearContent();
+  setUploadedFiles([]); // clear metadata after send
+  setAttachedFiles([]); // keep attachedFiles for backwards compatibility if used elsewhere
+};
+
 
   const addEmoji = (emoji: any) => {
     editor?.chain().focus().insertContent(emoji.native).run();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
+ const removeFile = async (index: number) => {
+  const file = uploadedFiles[index];
+  if (!file) return;
 
-    const files = Array.from(e.target.files);
+  try {
+    const res = await api.post(`${process.env.NEXT_PUBLIC_SERVER_URL}/upload/delete`, { path: file.path });
+    const data = res.data;
 
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await api.post("/upload", formData);
-      const data = res.data;
-
-      setUploadedFiles((prev) => [
-        ...prev,
-        {
-          name: data.name,
-          url: data.url,
-          type: file.type,
-        },
-      ]);
+    if (data.success) {
+      setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    } else {
+      console.error("Delete failed:", data.error);
     }
+  } catch (err) {
+    console.error("Delete error:", err);
+  }
+};
 
-    // ✅ CLOSE upload menu (no functional change)
-    window.dispatchEvent(new Event("closeFileUpload"));
 
-    // reset input
-    e.target.value = "";
-  };
+ const insertImage = (file: { url: string }) => {
+  editor?.chain().focus().setImage({ src: file.url }).run();
+};
 
-  const removeFile = (index: number) => {
-    setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const insertImage = (file: File) => {
-    const url = URL.createObjectURL(file);
-    editor?.chain().focus().setImage({ src: url }).run();
-  };
 
   const insertLink = () => {
     const url = prompt("Enter URL");
@@ -281,61 +454,8 @@ export default function MessageInput({
       editor.off("transaction", update);
     };
   }, [editor]);
-
-  //mention
-  const [mentionOpen, setMentionOpen] = useState(false);
-  const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 1 });
-
-  useEffect(() => {
-    if (!editor) return;
-
-    const handleUpdate = () => {
-      const { from } = editor.state.selection;
-
-      const textBefore = editor.state.doc.textBetween(
-        Math.max(0, from - 2),
-        from,
-        "\0",
-        "\0"
-      );
-
-      if (textBefore === " @" || textBefore === "@") {
-        const coords = editor.view.coordsAtPos(from);
-
-        setMentionPosition({
-          top: coords.bottom + 6,
-          left: coords.left,
-        });
-
-        setMentionOpen(true);
-      } else {
-        setMentionOpen(false);
-      }
-    };
-
-    editor.on("update", handleUpdate);
-
-    return () => {
-      editor.off("update", handleUpdate); // ✅ returns void now
-    };
-  }, [editor]);
-
-  const handleMentionSelect = (name: string) => {
-    editor
-      ?.chain()
-      .focus()
-      .deleteRange({
-        from: editor.state.selection.from - 1,
-        to: editor.state.selection.from,
-      })
-      .insertContent(`@${name} `)
-      .run();
-    setMentionOpen(false);
-  };
-
-  //mention end
   return (
-    <div className="flex flex-col gap-2 w-full message-box border overflow-hidden rounded-xl ">
+    <div className="flex flex-col gap-2 w-full message-box border overflow-hidden rounded-xl -translate-y-[0.5rem]">
       <div className="flex items-center gap-1 flex-wrap p-1 bg-gray-200">
         <ToolbarButton
           editor={editor}
@@ -425,86 +545,75 @@ export default function MessageInput({
       <div className=" p-2  dark:bg-zinc-900 relative" ref={editorRef}>
         <div className="max-h-[200px] overflow-y-auto break-all">
           <EditorContent editor={editor} />
-          {uploadedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-4 mt-2 w-fit">
-              {uploadedFiles.map((file, i) => (
-                <div
-                  key={i}
-                  className="relative flex flex-col items-center  px-2 py-2 rounded-lg w-36 "
-                >
-                  {(() => {
-                    const kind = getFileKind(file.type, file.name);
 
-                    if (kind === "image") {
-                      return (
-                        <>
-                          <button
-                            onClick={() => deleteUploadedFile(i)}
-                            className="absolute top-0 right-4 bg-gray-300 hover:bg-red-500 w-6 h-6 rounded-full text-white flex items-center justify-center text-sm"
-                          >
-                            ×
-                          </button>
-                          <img
-                            src={file.url}
-                            alt={file.name}
-                            className="w-22 h-22 object-cover rounded-md border border-black"
-                          />
-                        </>
-                      );
-                    }
+    <div className="flex flex-wrap gap-4 mt-2 w-fit">
+  {[
+    ...uploading.map((file) => ({ ...file, uploading: true })), // skeleton files
+    ...uploadedFiles.map((file) => ({ ...file, uploading: false })), // completed files
+  ].map((file, i) => {
+    const kind = file.uploading ? "image" : getFileKind(file.type, file.name);
 
-                    if (kind === "video") {
-                      return (
-                        <video
-                          src={file.url}
-                          className="w-22 h-22 rounded-md border border-black"
-                          controls
-                        />
-                      );
-                    }
-
-                    /* 🔹 Default for ALL other file types */
-
-                    return (
-                      <>
-                        <button
-                          onClick={() => deleteUploadedFile(i)}
-                          className="absolute top-0 right-4 bg-gray-300 hover:bg-red-500 w-6 h-6 rounded-full text-white flex items-center justify-center text-sm"
-                        >
-                          ×
-                        </button>
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <div className="py-3 px-7 flex gap-6 items-center justify-center rounded-md border border-black bg-gray-50">
-                            <CiFileOn className="text-3xl text-gray-600" />
-                          </div>
-                        </a>
-                      </>
-                    );
-                    return (
-                      <div className="w-22 h-22 flex items-center justify-center rounded-md border border-black bg-gray-100">
-                        <span className="text-xs truncate">{file.name}</span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ))}
+    return (
+      <div
+        key={i}
+        className="relative flex flex-col items-center px-2 py-2 rounded-lg cursor-pointer"
+      >
+        {file.uploading ? (
+          <div className="relative w-22 h-22 rounded-md overflow-hidden bg-gray-200 animate-pulse">
+            <img
+              src={file.preview}
+              className="w-full h-full object-cover opacity-40 blur-sm"
+            />
+          </div>
+        ) : kind === "image" ? (
+          <>
+            <button
+              onClick={() => deleteUploadedFile(i - uploading.length)}
+              className="absolute top-0 right-0 bg-gray-600 hover:bg-black hover:scale-[1.15] w-6 h-6 rounded-full text-white flex items-center justify-center text-sm cursor-pointer transition-all .3s"
+            >
+              <HiXMark />
+            </button>
+            <img
+              src={file.url}
+              alt={file.name}
+              className="w-22 h-22 object-cover rounded-md border border-black"
+            />
+          </>
+        ) : kind === "video" ? (
+          <video
+            src={file.url}
+            className="w-22 h-22 rounded-md border border-black"
+            controls
+          />
+        ) : (
+          <a
+            href={file.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <div className="py-3 px-7 flex gap-6 items-center justify-center rounded-md border border-black bg-gray-50">
+              <CiFileOn className="text-3xl text-gray-600" />
             </div>
-          )}
+          </a>
+        )}
+      </div>
+    );
+  })}
+</div>
+
 
           <div className="flex justify-between mt-2 sticky bottom-0">
             <div className="flex flex-row gap-1 items-center">
-              <ToolbarButton
-                size="xxl"
-                editor={editor}
-                command="toggleFileUpload"
-                label={<FiPlus />}
-                className=""
-              />
-
+               {!editingMessageId && (
+             <div className="upload-toggle-btn">
+                <ToolbarButton
+                  size="xxl"
+                  editor={editor}
+                  command="toggleFileUpload"
+                  label={<FiPlus />}
+                />
+              </div>
+               )}
               <Popover open={showEmoji} onOpenChange={setShowEmoji}>
                 <PopoverTrigger>
                   <Button size="md" variant="editor_buttons">
@@ -555,7 +664,6 @@ export default function MessageInput({
               </button>
             </div>
             <div>
-             
               {editingMessageId ? (
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleSend}>
@@ -628,7 +736,6 @@ export default function MessageInput({
 //     editor.chain().focus()[command]().run();
 //   };
 
-
 //   return (
 //     <Button
 //       size="md"
@@ -660,8 +767,10 @@ function ToolbarButton({ editor, command, label, size = "md" }: any) {
       window.dispatchEvent(new CustomEvent("toggleFileUpload"));
       return;
     }
+
     editor.chain().focus()[command]().run();
   };
+
   return (
     <Button
       size={size}
@@ -672,75 +781,3 @@ function ToolbarButton({ editor, command, label, size = "md" }: any) {
     </Button>
   );
 }
-
-// const [users, setUsers] = useState<
-//   { name: string; status: "online" | "offline" }[]
-// >([]);
-// const [loadingUsers, setLoadingUsers] = useState(false);
-
-// const fetchUsers = async () => {
-//   try {
-//     setLoadingUsers(true);
-
-//     const res = await fetch("http://localhost:5000/api/user");
-//     const data = await res.json();
-
-//     // adjust mapping based on your API response
-//     const mappedUsers = data.map((u: any) => ({
-//       name: u.name,        // or u.username
-//       status: u.online ? "online" : "offline",
-//     }));
-
-//     setUsers(mappedUsers);
-//   } catch (err) {
-//     console.error("Failed to fetch users", err);
-//   } finally {
-//     setLoadingUsers(false);
-//   }
-// };
-
-// useEffect(() => {
-//   if (!editor) return;
-
-//   const handleUpdate = () => {
-//     const { from } = editor.state.selection;
-//     const textBefore = editor.state.doc.textBetween(
-//       Math.max(0, from - 2),
-//       from,
-//       "\0",
-//       "\0"
-//     );
-
-//     if (textBefore === " @" || textBefore === "@") {
-//       const coords = editor.view.coordsAtPos(from);
-
-//       setMentionPosition({
-//         top: coords.bottom + 6,
-//         left: coords.left,
-//       });
-
-//       setMentionOpen(true);
-
-//       // fetch only once
-//       if (users.length === 0) {
-//         fetchUsers();
-//       }
-//     } else {
-//       setMentionOpen(false);
-//     }
-//   };
-
-//   editor.on("update", handleUpdate);
-//   return () => editor.off("update", handleUpdate);
-// }, [editor, users.length]);
-
-{
-  /* <MentionDropdown
-  open={mentionOpen}
-  onOpenChange={setMentionOpen}
-  users={users}
-  position={mentionPosition}
-  onSelect={handleMentionSelect}
-/> */
-}
-//

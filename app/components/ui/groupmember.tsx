@@ -48,7 +48,6 @@ export default function AvatarDemo({ channelId }: AvatarDemoProps) {
       {/* Modal */}
       {isModalOpen && selectedMember && (
         <>
-        <div>helkl</div>
         <Channelmambers
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}

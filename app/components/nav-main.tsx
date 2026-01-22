@@ -77,7 +77,7 @@ export function NavMain({ items }: { items: NavItem[] }) {
               <CollapsibleContent>
                 <SidebarMenuSub>
                   {item.items?.map((sub) => (
-                    <SidebarMenuSubItem key={sub.title} >
+                    <SidebarMenuSubItem key={sub.url} >
                       {
                       item.type !== "docs" && (
 

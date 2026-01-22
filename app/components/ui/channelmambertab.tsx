@@ -13,8 +13,9 @@ import api from "@/lib/axios";
 
 type Member = {
   id: number;
-  username: string;
+  name: string;
   email: string;
+  avatar_url?: string;
 };
 
 type ChannelMembersProps = {
@@ -31,16 +32,20 @@ export default function Channelmambers({
   channelName = "Channel",
 }: ChannelMembersProps) {
   const [members, setMembers] = useState<Member[]>([]);
+  const [channel_info, setChannelInfo] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isOpen || !channelId) return;
-
     setLoading(true);
 
     api
       .get(`/channels/${channelId}/members`)
-      .then((res) => setMembers(res.data))
+      .then((res) => {
+        setMembers(res.data.members);
+        setChannelInfo(res.data.channel);
+      }
+      )
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   }, [channelId, isOpen]);
@@ -51,17 +56,15 @@ export default function Channelmambers({
         {/* Header */}
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle className="text-xl font-bold">
-            # {channelName}
+            # {channel_info?.name}
           </DialogTitle>
-
-         
         </DialogHeader>
 
         {/* Content */}
         <div className="space-y-3">
-          {/* <h3 className="text-sm font-semibold text-muted-foreground">
+          <h3 className="text-sm font-semibold text-muted-foreground">
             Members ({members.length})
-          </h3> */}
+          </h3>
 
           {loading ? (
             <p className="text-sm text-muted-foreground">
@@ -79,15 +82,15 @@ export default function Channelmambers({
                   className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
                 >
                   <Image
-                    src="/1.jpg"
-                    alt={member.username}
+                    src={`/avatar/${member.avatar_url || "fallback.webp"}`}
+                    alt={member.name}
                     width={36}
                     height={36}
                     className="rounded-full object-cover"
                   />
 
                   <span className="capitalize font-medium">
-                    {member.username}
+                    {member.name}
                   </span>
                 </li>
               ))}

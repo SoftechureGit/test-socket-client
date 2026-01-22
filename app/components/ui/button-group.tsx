@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Button } from "@/app/components/ui/button";
+import { usePathname } from "next/navigation";
 
 type ButtonItem = {
   label: string;
@@ -12,19 +15,27 @@ type Props = {
 };
 
 export default function ButtonGroup({ items }: Props) {
+  const pathname = usePathname();
+
   return (
     <div className="inline-flex" role="group">
       {items.map((item, index) => {
         const isFirst = index === 0;
         const isLast = index === items.length - 1;
 
+        // Check if this button is active
+const isActive =
+  pathname === item.href || pathname?.endsWith(item.href.split("/").pop() || "");
+
         return (
           <Link key={index} href={item.href}>
             <Button
-              variant={item.variant || "navbar"}
-              className={`rounded-none ${
-                isFirst ? "relative after:absolute after:left-0 after:-bottom-0 after:h-[2px] after:w-full after:bg-current after:scale-x-0 after:origin-left after:transition-transform after:scale-x-100 " : ""
-              } `}
+              variant={item.variant || "ghost"}
+              className={`
+                rounded-none relative justify-center flex
+                ${isFirst ? "" : ""}
+                ${isActive ? "after:absolute after:left-0 after:-bottom-0 after:h-[2px] after:w-full after:bg-current after:scale-x-100 after:origin-left after:transition-transform" : "after:scale-x-0"}
+              `}
             >
               {item.label}
             </Button>

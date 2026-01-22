@@ -9,24 +9,42 @@ import { FaComputer } from "react-icons/fa6";
 export default function FileUploadToggle() {
   const [open, setOpen] = useState<boolean>(false);
 
- useEffect(() => {
-  const toggleHandler = () => setOpen(prev => !prev);
+useEffect(() => {
+  const openHandler = () => setOpen((o) => !o);
   const closeHandler = () => setOpen(false);
 
-  window.addEventListener("toggleFileUpload", toggleHandler);
+ const outsideClick = (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+
+  // Check if click is outside the popup and the toggle button
+  if (
+    !target.closest(".file-upload-popup") &&
+    !target.closest(".upload-toggle-btn")
+  ) {
+    setOpen(false);
+  }
+};
+
+
+  window.addEventListener("toggleFileUpload", openHandler);
   window.addEventListener("closeFileUpload", closeHandler);
+  window.addEventListener("mousedown", outsideClick);
+  window.addEventListener("blur", closeHandler);
 
   return () => {
-    window.removeEventListener("toggleFileUpload", toggleHandler);
+    window.removeEventListener("toggleFileUpload", openHandler);
     window.removeEventListener("closeFileUpload", closeHandler);
+    window.removeEventListener("mousedown", outsideClick);
+    window.removeEventListener("blur", closeHandler);
   };
 }, []);
+
 
 
   if (!open) return null;
 
   return (
-    <div className="absolute bottom-15 left-1 z-50 rounded-xl text-gray-500 py-1 px-3 bg-white">
+<div className="file-upload-popup absolute bottom-15 left-1 z-50 rounded-xl text-gray-500 bg-white">
       <div className="border border-gray-200 shadow-md py-3 px-7 w-90 rounded-lg gap-3">
         {/* <p className="flex col-flex text-black text-md items-center gap-3 mt-2">
           <CiViewList size={20} />

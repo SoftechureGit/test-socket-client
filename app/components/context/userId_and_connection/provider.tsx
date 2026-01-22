@@ -23,56 +23,94 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<UserType | null>(null);
   const [isOnline, setIsOnline] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
+  // const socketRef = useRef<Socket | null>(null);
+const [socket, setSocket] = useState<Socket | null>(null);
+
+  // useEffect(() => {
+  //   if (socketRef.current) return; // prevent duplicate connection
+
+  //   // const socket = io(process.env.NEXT_PUBLIC_SERVER_URL!, {
+  //   //   withCredentials: true, // ✅ cookies sent
+  //   //   transports: ["websocket"],
+  //   // });
+
+  //   const socket = io(process.env.NEXT_PUBLIC_SERVER_URL!, {
+  //     transports: ["websocket"],
+  //     auth: {
+  //       token: localStorage.getItem("access_token"), // or from memory
+  //     },
+  //   });
+
+
+  //   socketRef.current = socket;
+
+  //   socket.on("connect", () => {
+  //     setIsOnline(true);
+  //   });
+
+  //   socket.on("auth-success", ({ user }) => {
+  //     setUser(user); // ✅ full user object
+  //   });
+
+  //   socket.on("disconnect", () => {
+  //     setIsOnline(false);
+  //     setUser(null);
+  //   });
+
+  //   socket.on("connect_error", (err) => {
+  //     console.error("Socket error:", err.message);
+  //     setIsOnline(false);
+  //   });
+
+  //   return () => {
+  //     socket.disconnect();
+  //     socketRef.current = null;
+  //   };
+  // }, []);
 
   useEffect(() => {
-    if (socketRef.current) return; // prevent duplicate connection
+  if (socket) return; // prevent duplicate connection
 
-    // const socket = io(process.env.NEXT_PUBLIC_SERVER_URL!, {
-    //   withCredentials: true, // ✅ cookies sent
-    //   transports: ["websocket"],
-    // });
+  const s = io(process.env.NEXT_PUBLIC_SERVER_URL!, {
+    transports: ["websocket"],
+    auth: {
+      token: localStorage.getItem("access_token"),
+    },
+  });
 
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL!, {
-      transports: ["websocket"],
-      auth: {
-        token: localStorage.getItem("access_token"), // or from memory
-      },
-    });
+  setSocket(s);
 
+  s.on("connect", () => {
+    setIsOnline(true);
+  });
 
-    socketRef.current = socket;
+  s.on("auth-success", ({ user }) => {
+    setUser(user);
+  });
 
-    socket.on("connect", () => {
-      setIsOnline(true);
-    });
+  s.on("disconnect", () => {
+    setIsOnline(false);
+    setUser(null);
+  });
 
-    socket.on("auth-success", ({ user }) => {
-      setUser(user); // ✅ full user object
-    });
+  s.on("connect_error", (err) => {
+    console.error("Socket error:", err.message);
+    setIsOnline(false);
+  });
 
-    socket.on("disconnect", () => {
-      setIsOnline(false);
-      setUser(null);
-    });
-
-    socket.on("connect_error", (err) => {
-      console.error("Socket error:", err.message);
-      setIsOnline(false);
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, []);
+  return () => {
+    s.disconnect();
+    setSocket(null);
+  };
+}, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
         isOnline,
-        socket: socketRef.current,
+        socket,
+        // socket: socketRef.current,
       }}
     >
       {children}

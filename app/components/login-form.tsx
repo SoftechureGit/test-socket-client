@@ -30,43 +30,50 @@ export function LoginForm({ className, ...props }: React.ComponentProps<"div">) 
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      const res = await api.post(`/auth/login`, { email, password });
-      const data = res.data;
+  try {
+    const res = await api.post(`/auth/login`, { email, password });
+    const data = res.data;
 
-      // ✅ Set auth_token cookie client-side for middleware
-      if (data.user?.access_token) {
-        Cookies.set("access_token", data.user.access_token, {
-          path: "/",           // middleware will read this
-          sameSite: process.env.NODE_ENV === "production" ? "Lax" : "Strict",
-          secure: process.env.NODE_ENV === "production",
-        });
-      }
+    // ✅ Show server response in console
+    console.log("Server response:", data);
 
-      // ✅ Show success toast
-      toast.success("Login successful!", {
-        duration: 2000,
+    // ✅ Set auth_token cookie client-side for middleware
+    if (data.user?.access_token) {
+      Cookies.set("access_token", data.user.access_token, {
+        path: "/", // middleware will read this
+        sameSite: process.env.NODE_ENV === "production" ? "Lax" : "Strict",
+        secure: process.env.NODE_ENV === "production",
       });
-      if (data.user?.access_token) {
-        localStorage.setItem("access_token", data.user.access_token);
-      }
 
-      // ✅ Redirect AFTER cookie is set
-      setTimeout(() => {
-        router.replace("/"); // middleware will now allow access
-      }, 500);
-
-    } catch (err) {
-      console.error(err);
-      toast.error("Something went wrong");
-    } finally {
-      setLoading(false);
+      // ✅ Store access_token in localStorage for API calls
+      localStorage.setItem("access_token", data.user.access_token);
     }
+
+    // ✅ Show success toast
+    toast.success(data.message || "Login successful!", { duration: 2000 });
+
+    // ✅ Redirect AFTER cookie is set
+    setTimeout(() => {
+      router.replace("/"); // middleware will now allow access
+    }, 500);
+
+  } catch (err: any) {
+    // ✅ Axios error object contains response from server
+    if (err.response) {
+      console.error("Login error response:", err.response.data);
+      toast.error(err.response.data.error || "Login failed. Please try again.");
+    } else {
+      toast.error(err.message || "Login failed. Please try again.");
+    }
+  } finally {
+    setLoading(false);
   }
+}
+
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>

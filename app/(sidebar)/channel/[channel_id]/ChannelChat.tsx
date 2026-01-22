@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState,useCallback } from "react";
 import { useAuth } from "@/app/components/context/userId_and_connection/provider";
 import MessageInput from "@/app/components/custom/MessageInput";
 import ChatHover from "@/app/components/chat-hover";
@@ -7,7 +7,7 @@ import DOMPurify from "dompurify";
 import MainHeader from "@/app/shared/ui/MainHeader";
 import FileBg from "@/app/components/ui/file-bg";
 import FileUploadToggle from "@/app/components/ui/file-upload";
-import Dateseparator from "@/app/components/ui/date"
+import Dateseparator from "@/app/components/ui/date";
 import { shouldShowDateSeparator } from "@/lib/shouldShowDateSeparator";
 
 import {
@@ -32,6 +32,12 @@ type ChatFile = {
   type: string;
   size: number;
 };
+type Channel = {
+  id: number | string;
+  is_private: boolean;
+  is_dm?: boolean;
+  // add anything else you need later
+};
 type ChatMessage = {
   id?: number | string;
   sender_id: string;
@@ -53,7 +59,14 @@ type ChannelChatProps = {
 export default function ChannelChat({ channelId }: ChannelChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isDm, setIsDm] = useState(false);
-const [dmOtherUser, setDmOtherUser] = useState<any>(null);
+  const [dmOtherUser, setDmOtherUser] = useState<any>(null);
+  const [channel, setChannel] = useState<Channel | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+const [initialLoading, setInitialLoading] = useState(false);
+const [isLoadingMore, setIsLoadingMore] = useState(false);
+const [nextCursor, setNextCursor] = useState<number | null>(null);
+const [hasMore, setHasMore] = useState(true);
 
   const formatDate = (date: string) =>
     new Date(date).toLocaleDateString("en-GB", {
@@ -76,7 +89,7 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
   const [editMessageId, setEditMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>("");
   const [showEmojiPickerFor, setShowEmojiPickerFor] = useState<string | null>(
-    null
+    null,
   );
 
   // for drag and drop file
@@ -84,51 +97,40 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
   const dragCounter = useRef(0);
 
   const isFileDrag = (e: React.DragEvent) => {
-  return Array.from(e.dataTransfer.types).includes("Files");
-};
+    return Array.from(e.dataTransfer.types).includes("Files");
+  };
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-  if (!isFileDrag(e)) return;
+    if (!isFileDrag(e)) return;
 
-  e.preventDefault();
-  dragCounter.current += 1;
-  setDragging(true);
-};
+    e.preventDefault();
+    dragCounter.current += 1;
+    setDragging(true);
+  };
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-  if (!isFileDrag(e)) return;
+    if (!isFileDrag(e)) return;
 
-  e.preventDefault();
-  dragCounter.current -= 1;
+    e.preventDefault();
+    dragCounter.current -= 1;
 
-  if (dragCounter.current === 0) {
-    setDragging(false);
-  }
-};
+    if (dragCounter.current === 0) {
+      setDragging(false);
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-  if (!isFileDrag(e)) return;
+    if (!isFileDrag(e)) return;
 
-  e.preventDefault(); // allow drop
-};
+    e.preventDefault(); // allow drop
+  };
 
-  // const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-  //   e.preventDefault();
-  //   dragCounter.current = 0;
-  //   setDragging(false);
-
-  //   const files = e.dataTransfer.files;
-  //   if (files.length) {
-  //     console.log("Dropped files:", files);
-  //     // Handle files here
-  //   }
-  // };
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-  if (!isFileDrag(e)) return;
+    if (!isFileDrag(e)) return;
 
-  e.preventDefault();
-  dragCounter.current = 0;
-  setDragging(false);
+    e.preventDefault();
+    dragCounter.current = 0;
+    setDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
     if (!files.length) return;
@@ -144,6 +146,7 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
       .get(`/channels/${channelId}`)
       .then((res) => {
         const data = res.data;
+        setChannel(data.channel);
         if (data.channel?.is_dm) {
           setIsDm(true);
           setDmOtherUser(data.dm_user);
@@ -153,7 +156,6 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
       })
       .catch((err) => console.error(err));
   }, [channelId]);
-
 
   useEffect(() => {
     if (!socket || !channelId) return;
@@ -189,7 +191,7 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
 
       const stableId =
         msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
-      const createdAt = msg.created_at ?? new Date().toISOString();
+
       const chatMsg: ChatMessage = {
         id: stableId,
         sender_id: msg.sender_id,
@@ -197,21 +199,33 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
         content: msg.content,
         files: Array.isArray(msg.files) ? msg.files : [],
         self: String(msg.sender_id) === String(userId),
-        created_at: createdAt,
+        created_at: msg.created_at ?? new Date().toISOString(),
         avatar_url: msg.avatar_url ?? null,
       };
+
       setMessages((prev) => {
-        if (
-          chatMsg.id != null &&
-          prev.some((m) => String(m.id) === String(chatMsg.id))
-        )
-          return prev;
-        const next = [...prev, chatMsg].sort((a, b) => {
-          const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return ta - tb;
-        });
-        return next;
+        // 1️⃣ Try to find the optimistic message to replace
+        const tempIdx = prev.findIndex(
+          (m) =>
+            m.self &&
+            m.id.toString().startsWith("temp-") &&
+            m.content === chatMsg.content,
+        );
+
+        if (tempIdx !== -1) {
+          const next = [...prev];
+          next[tempIdx] = chatMsg;
+          return next;
+        }
+
+        // 2️⃣ Prevent duplicates if message already exists
+        if (prev.some((m) => String(m.id) === String(chatMsg.id))) return prev;
+
+        return [...prev, chatMsg].sort(
+          (a, b) =>
+            new Date(a.created_at!).getTime() -
+            new Date(b.created_at!).getTime(),
+        );
       });
     };
 
@@ -246,16 +260,16 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
     const handleReactionsUpdate = ({ messageId, reactions }: any) => {
       setMessages((prev) =>
         prev.map((msg) =>
-          String(msg.id) === String(messageId) ? { ...msg, reactions } : msg
-        )
+          String(msg.id) === String(messageId) ? { ...msg, reactions } : msg,
+        ),
       );
     };
 
     const handleMessageEdited = (msg: any) => {
       setMessages((prev) =>
         prev.map((m) =>
-          String(m.id) === String(msg.id) ? { ...m, content: msg.content } : m
-        )
+          String(m.id) === String(msg.id) ? { ...m, content: msg.content } : m,
+        ),
       );
     };
 
@@ -271,59 +285,239 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
       socket.off("messageEdited", handleMessageEdited);
     };
   }, [socket, userId]);
-  useEffect(() => {
-    console.log("messages api call");
-    if (!userId || !channelId) return;
-    api
-      .get(`/channels/${channelId}/messages`)
-      .then((r) => r.data)
-      .then((data: any[]) => {
-        const mapped: ChatMessage[] = data
-          .map((msg: any) => {
-            const stableId =
-              msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
-            const createdAt = msg.created_at ?? new Date().toISOString();
-            let reactions: Reaction[] | undefined;
-            if (msg.reactions) {
-              try {
-                const raw =
-                  typeof msg.reactions === "string"
-                    ? JSON.parse(msg.reactions)
-                    : msg.reactions;
-                reactions = raw.map((r: any) => ({
-                  emoji: r.emoji,
-                  count: r.count,
-                  users: r.users,
-                }));
-              } catch {
-                reactions = [];
-              }
-            }
-            return {
-              id: stableId,
-              sender_id: String(msg.sender_id),
-              sender_name: msg.sender_name,
-              content: msg.content,
-              files: msg.files ? JSON.parse(msg.files) : [],
-              self: String(msg.sender_id) === String(userId),
-              created_at: createdAt,
-              updated_at: msg.updated_at ?? null,
-              reactions,
-              avatar_url: msg.avatar_url ?? null,
-              pinned: msg.pinned === 1 || msg.pinned === true || msg.pinned === "1",
-            };
-          })
-          .sort((a, b) => {
-            const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return ta - tb;
-          });
-        setMessages(mapped);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch messages:", err);
+
+// const loadMessages = async (initial = false) => {
+//   // Prevent overlapping loads
+//   if (!initial && isLoadingMore) return;
+//   if (!hasMore && !initial) return;
+
+//   const el = containerRef.current;
+//   const prevScrollHeight = el?.scrollHeight ?? 0;
+
+//   if (initial) {
+//     setInitialLoading(true);
+//     setLoading(true);
+//   } else {
+//     setIsLoadingMore(true);  // show "top" skeleton when loading more
+//   }
+
+//   try {
+//     const res = await api.get(`/channels/${channelId}/messages`, {
+//       params: {
+//         limit: 20,
+//         cursor: initial ? null : nextCursor,
+//       },
+//     });
+
+//     const data = res.data;
+
+//     const mapped: ChatMessage[] = data.messages.map((msg: any) => ({
+//       id: msg.id,
+//       sender_id: String(msg.sender_id),
+//       sender_name: msg.sender_name,
+//       content: msg.content,
+//       files: msg.files ? JSON.parse(msg.files) : [],
+//       self: String(msg.sender_id) === String(userId),
+//       created_at: msg.created_at,
+//       updated_at: msg.updated_at,
+//       reactions: msg.reactions ? JSON.parse(msg.reactions) : [],
+//       avatar_url: msg.avatar_url ?? null,
+//       pinned: msg.pinned === true,
+//     }));
+
+//     setMessages((prev) => (initial ? mapped : [...mapped, ...prev]));
+
+//     setNextCursor(data.nextCursor);
+//     setHasMore(!!data.nextCursor);
+
+//     // restore scroll when prepending
+//     if (!initial && el) {
+//       requestAnimationFrame(() => {
+//         const newScrollHeight = el.scrollHeight;
+//         el.scrollTop = newScrollHeight - prevScrollHeight;
+//       });
+//     }
+//   } catch (err) {
+//     console.error("Failed to load messages:", err);
+//   } finally {
+//     if (initial) {
+//       setInitialLoading(false);
+//       setLoading(false);
+//     } else {
+//       setIsLoadingMore(false);
+//     }
+//   }
+// };
+
+// const loadMessages = useCallback(
+//   async (initial = false) => {
+//     console.log("loadMessages called", { initial, hasMore, isLoadingMore, nextCursor });
+//     // prevent overlapping loads
+//     if (!initial && (isLoadingMore || !hasMore)) return;
+
+//     const el = containerRef.current;
+//     const prevScrollHeight = el?.scrollHeight ?? 0;
+
+//     if (initial) {
+//       setInitialLoading(true);
+//     } else {
+//       setIsLoadingMore(true);
+//     }
+
+//     try {
+//       const res = await api.get(`/channels/${channelId}/messages`, {
+//         params: {
+//           limit: 20,
+//           cursor: initial ? null : nextCursor,
+//         },
+//       });
+
+//       const data = res.data;
+
+//       const mapped: ChatMessage[] = data.messages.map((msg: any) => ({
+//         id: msg.id,
+//         sender_id: String(msg.sender_id),
+//         sender_name: msg.sender_name,
+//         content: msg.content,
+//         files: msg.files ? JSON.parse(msg.files) : [],
+//         self: String(msg.sender_id) === String(userId),
+//         created_at: msg.created_at,
+//         updated_at: msg.updated_at,
+//         reactions: msg.reactions ? JSON.parse(msg.reactions) : [],
+//         avatar_url: msg.avatar_url ?? null,
+//         pinned: msg.pinned === true,
+//       }));
+
+//       setMessages((prev) => (initial ? mapped : [...mapped, ...prev]));
+
+//       setNextCursor(data.nextCursor ?? null);
+//       setHasMore(!!data.nextCursor);
+
+//       // restore scroll when prepending
+//       if (!initial && el) {
+//         requestAnimationFrame(() => {
+//           const newScrollHeight = el.scrollHeight;
+//           el.scrollTop = newScrollHeight - prevScrollHeight;
+//         });
+//       }
+//     } catch (err) {
+//       console.error("Failed to load messages:", err);
+//     } finally {
+//       if (initial) {
+//         setInitialLoading(false);
+//       } else {
+//         setIsLoadingMore(false);
+//       }
+//     }
+//   },
+//   [channelId, userId, hasMore, isLoadingMore, nextCursor],
+// );
+
+const loadMessages = useCallback(
+  async (initial = false) => {
+    if (!channelId || !userId) return;
+
+    console.log("loadMessages called", { initial, hasMore, isLoadingMore, nextCursor });
+
+    // prevent overlapping and useless loads
+    if (!initial) {
+      if (isLoadingMore) return;
+      if (!hasMore) return;
+      if (nextCursor == null) return;
+    }
+
+    const el = containerRef.current;
+    const prevScrollHeight = el?.scrollHeight ?? 0;
+
+    if (initial) {
+      setInitialLoading(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+
+    try {
+      const res = await api.get(`/channels/${channelId}/messages`, {
+        params: {
+          limit: 20,
+          cursor: initial ? null : nextCursor,
+        },
       });
-  }, [channelId, userId]);
+
+      const data = res.data;
+
+      const mapped: ChatMessage[] = data.messages.map((msg: any) => ({
+        id: msg.id,
+        sender_id: String(msg.sender_id),
+        sender_name: msg.sender_name,
+        content: msg.content,
+        files: msg.files ? JSON.parse(msg.files) : [],
+        self: String(msg.sender_id) === String(userId),
+        created_at: msg.created_at,
+        updated_at: msg.updated_at,
+        reactions: msg.reactions ? JSON.parse(msg.reactions) : [],
+        avatar_url: msg.avatar_url ?? null,
+        pinned: msg.pinned === true,
+      }));
+
+      setMessages((prev) => (initial ? mapped : [...mapped, ...prev]));
+
+      const newCursor = data.nextCursor ?? null;
+
+      // If no messages or cursor didn't move, stop further loading
+      if (!mapped.length || newCursor === nextCursor || newCursor == null) {
+        setHasMore(false);
+        setNextCursor(null);
+      } else {
+        setHasMore(true);
+        setNextCursor(newCursor);
+      }
+
+      if (!initial && el) {
+        requestAnimationFrame(() => {
+          const newScrollHeight = el.scrollHeight;
+          el.scrollTop = newScrollHeight - prevScrollHeight;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+    } finally {
+      if (initial) {
+        setInitialLoading(false);
+      } else {
+        setIsLoadingMore(false);
+      }
+    }
+  },
+  [channelId, userId, hasMore, isLoadingMore, nextCursor],
+);
+
+  // useEffect(() => {
+  //   if (!channelId || !userId) return;
+
+  //   setMessages([]);
+  //   setNextCursor(null);
+  //   setHasMore(true);
+  //   setInitialLoading(true);
+
+  //   loadMessages(true);
+  // }, [channelId, userId]);
+
+  useEffect(() => {
+  if (!channelId || !userId) return;
+
+  setMessages([]);
+  setNextCursor(null);
+  setHasMore(true);
+
+  loadMessages(true);
+}, [channelId, userId]);
+
+  useEffect(() => {
+    if (initialLoading) return;
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [initialLoading]);
 
   useEffect(() => {
     if (!socket) return;
@@ -331,8 +525,8 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
     const handlePinnedUpdate = ({ messageId, pinned }: any) => {
       setMessages((prev) =>
         prev.map((msg) =>
-          String(msg.id) === String(messageId) ? { ...msg, pinned } : msg
-        )
+          String(msg.id) === String(messageId) ? { ...msg, pinned } : msg,
+        ),
       );
     };
 
@@ -345,44 +539,110 @@ const [dmOtherUser, setDmOtherUser] = useState<any>(null);
     };
   }, [socket]);
 
+  // useEffect(() => {
+  //   const el = containerRef.current;
+  //   if (!el) return;
+  //   requestAnimationFrame(() => {
+  //     el.scrollTop = el.scrollHeight;
+  //   });
+  // }, [messages.length]);
+
+//   useEffect(() => {
+//   const el = containerRef.current;
+//   if (!el) return;
+
+//   const onScroll = () => {
+//     if (el.scrollTop < 200 && hasMore && !isLoadingMore && !initialLoading) {
+//       loadMessages(false);
+//     }
+//   };
+
+//   el.addEventListener("scroll", onScroll);
+//   return () => el.removeEventListener("scroll", onScroll);
+// }, [hasMore, isLoadingMore, initialLoading, nextCursor]); 
+
+useEffect(() => {
+  const el = containerRef.current;
+  if (!el) return;
+
+  const onScroll = () => {
+    // when near top, try to load more
+    if (el.scrollTop < 200) {
+      loadMessages(false);
+    }
+  };
+
+  el.addEventListener("scroll", onScroll);
+  return () => el.removeEventListener("scroll", onScroll);
+}, [loadMessages]);
+
+  const shouldAutoScrollRef = useRef(true);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-    });
-  }, [messages.length]);
 
-const handleSendMessage = async (content: string, files?: any[]) => {
-  if (!socket || !socket.connected) return;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
 
-  // If files are already metadata objects (have .url), send them directly
-  let fileMetadata: any[] = [];
-
-  if (files && files.length > 0) {
-    const first = files[0];
-    const isMetadata = first && (first.url || first.path);
-
-    if (isMetadata) {
-      fileMetadata = files; // already uploaded by MessageInput
-    } else {
-      // fallback: files are raw File objects -> upload them here
-      const formData = new FormData();
-      files.forEach((f: File) => formData.append("files", f));
-
-      const res = await api.post(`${SERVER_URL}/upload`, formData);
-      const data = res.data;
-      fileMetadata = Array.isArray(data.files) ? data.files : [];
+    if (nearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
+  }, [messages]);
+
+  function MessageSkeleton() {
+    return (
+      <div className="flex gap-3 px-6 py-2 animate-pulse">
+        <div className="w-8 h-8 rounded bg-gray-300" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3 w-32 bg-gray-300 rounded" />
+          <div className="h-3 w-full bg-gray-200 rounded" />
+          <div className="h-3 w-2/3 bg-gray-200 rounded" />
+        </div>
+      </div>
+    );
   }
 
-  socket.emit("sendMessage", {
-    content,
-    channel_id: Number(channelId),
-    files: fileMetadata, // metadata only
-  });
-};
+  const handleSendMessage = async (content: string, files?: any[]) => {
+    if (!socket || !socket.connected) return;
 
+    let fileMetadata: any[] = [];
+
+    if (files && files.length > 0) {
+      const first = files[0];
+      const isMetadata = first && (first.url || first.path);
+
+      if (isMetadata) {
+        fileMetadata = files;
+      } else {
+        const formData = new FormData();
+        files.forEach((f: File) => formData.append("files", f));
+        const res = await api.post(`${SERVER_URL}/upload`, formData);
+        fileMetadata = Array.isArray(res.data.files) ? res.data.files : [];
+      }
+    }
+
+    // 1️⃣ Optimistically add message to UI
+    const tempId = `temp-${Date.now()}`;
+    const newMsg: ChatMessage = {
+      id: tempId,
+      sender_id: userId!,
+      sender_name: user?.name,
+      avatar_url: user?.avatar_url ?? null,
+      content,
+      files: fileMetadata,
+      self: true,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, newMsg]);
+
+    // 2️⃣ Send to server
+    socket.emit("sendMessage", {
+      content,
+      channel_id: Number(channelId),
+      files: fileMetadata,
+    });
+  };
 
   function pinMessage(messageId: string | number) {
     if (!socket) return;
@@ -394,7 +654,7 @@ const handleSendMessage = async (content: string, files?: any[]) => {
 
     const currentDate = new Date(messages[index].created_at).toDateString();
     const previousDate = new Date(
-      messages[index - 1].created_at
+      messages[index - 1].created_at,
     ).toDateString();
 
     return currentDate !== previousDate;
@@ -422,7 +682,7 @@ const handleSendMessage = async (content: string, files?: any[]) => {
   function handleSaveEdit(
     messageId: string,
     newContent: string,
-    files?: File[]
+    files?: File[],
   ) {
     // const socket = socketRef.current;
 
@@ -431,8 +691,8 @@ const handleSendMessage = async (content: string, files?: any[]) => {
       prev.map((m) =>
         String(m.id) === String(messageId)
           ? { ...m, content: newContent, updated_at: new Date().toISOString() }
-          : m
-      )
+          : m,
+      ),
     );
 
     if (socket && socket.connected) {
@@ -443,7 +703,7 @@ const handleSendMessage = async (content: string, files?: any[]) => {
       });
     } else {
       console.warn(
-        "Socket not connected — edit will not be sent to server now."
+        "Socket not connected — edit will not be sent to server now.",
       );
     }
 
@@ -490,118 +750,15 @@ const handleSendMessage = async (content: string, files?: any[]) => {
         }
 
         return { ...msg, reactions };
-      })
+      }),
     );
 
     socket.emit("reactMessage", { messageId, emoji: selectedEmoji });
     setShowEmojiPickerFor(null);
   }
 
-  // function toggleReaction(messageId: string | number, emoji: string) {
-  //   //const socket = socketRef.current;
-  //   if (!socket) return;
-
-  //   setMessages((prev) =>
-  //     prev.map((msg) => {
-  //       if (String(msg.id) !== String(messageId)) return msg;
-
-  //       const reactions = msg.reactions
-  //         ? msg.reactions.map((r) => ({
-  //             ...r,
-  //             users: Array.isArray(r.users) ? r.users : [],
-  //           }))
-  //         : [];
-
-  //       const idx = reactions.findIndex((r) => r.emoji === emoji);
-
-  //       if (idx === -1) {
-  //         // User adds reaction
-  //         reactions.push({ emoji, count: 1, users: [userId] });
-  //       } else {
-  //         const entry = reactions[idx];
-  //         const hasReacted = entry.users.includes(userId);
-
-  //         if (!hasReacted) {
-  //           // User adds reaction (other users already reacted)
-  //           const newUsers = [...entry.users, userId];
-  //           reactions[idx] = {
-  //             ...entry,
-  //             users: newUsers,
-  //             count: newUsers.length,
-  //           };
-  //         } else {
-  //           // User can ONLY remove THEIR OWN reaction, not others
-  //           const newUsers = entry.users.filter((u) => u !== userId);
-
-  //           // If after removing yourself, others still reacted → keep reaction
-  //           if (newUsers.length > 0) {
-  //             reactions[idx] = {
-  //               ...entry,
-  //               users: newUsers,
-  //               count: newUsers.length,
-  //             };
-  //           } else {
-  //             // If no one else reacted → remove reaction entirely
-  //             reactions.splice(idx, 1);
-  //           }
-  //         }
-  //       }
-
-  //       return { ...msg, reactions };
-  //     })
-  //   );
-
-  //   socket.emit("reactMessage", { messageId, emoji });
-  // }
-
   function toggleReaction(messageId: string | number, emoji: string) {
     if (!socket || !userId) return;
-
-    // setMessages((prev) =>
-    //   prev.map((msg) => {
-    //     if (String(msg.id) !== String(messageId)) return msg;
-
-    //     const reactions = msg.reactions
-    //       ? msg.reactions.map((r) => ({
-    //           ...r,
-    //           users: Array.isArray(r.users) ? r.users : [],
-    //         }))
-    //       : [];
-
-    //     const idx = reactions.findIndex((r) => r.emoji === emoji);
-
-    //     if (idx === -1) {
-    //       reactions.push({ emoji, count: 1, users: [userId] });
-    //     } else {
-    //       const entry = reactions[idx];
-    //       const hasReacted = entry.users.includes(userId);
-
-    //       if (!hasReacted) {
-    //         const newUsers = [...entry.users, userId];
-    //         reactions[idx] = {
-    //           ...entry,
-    //           users: newUsers,
-    //           count: newUsers.length,
-    //         };
-    //       } else {
-    //         const newUsers = entry.users.filter((u) => u !== userId);
-
-    //         if (newUsers.length > 0) {
-    //           reactions[idx] = {
-    //             ...entry,
-    //             users: newUsers,
-    //             count: newUsers.length,
-    //           };
-    //         } else {
-    //           reactions.splice(idx, 1);
-    //         }
-    //       }
-    //     }
-
-    //     return { ...msg, reactions };
-    //   })
-    // );
-
     socket.emit("reactMessage", { messageId, emoji });
   }
 
@@ -637,7 +794,7 @@ const handleSendMessage = async (content: string, files?: any[]) => {
     if (!socket) return;
     socket.emit("deleteMessage", { id: messageId });
     setMessages((prev) =>
-      prev.filter((m) => String(m.id) !== String(messageId))
+      prev.filter((m) => String(m.id) !== String(messageId)),
     );
   }
 
@@ -658,26 +815,42 @@ const handleSendMessage = async (content: string, files?: any[]) => {
           <FileBg />
         </div>
       )}
-      <main className="flex flex-col flex-1">
-<MainHeader
+      <main className="flex flex-col flex-1 min-h-0">
+        {/* <MainHeader
   id={channelId}
   type={isDm ? "dm" : "channel"}
   dmUser={dmOtherUser}
-/>
+  isPrivate={channel?.is_private ?? false}
+/> */}
 
         <div
           ref={containerRef}
-          className="flex-1 py-2 bg-[var(--sidebar)]"
+          className="flex-1 py-6 bg-[var(--sidebar)] overflow-y-auto"
           style={{ scrollbarGutter: "stable" }}
         >
+          {/* Initial full-page skeleton while first page loads */}
+          {initialLoading && (
+            <>
+              <MessageSkeleton />
+              <MessageSkeleton />
+              <MessageSkeleton />
+            </>
+          )}
+
+          {/* When scrolling up and loading previous messages, show skeleton at top */}
+          {!initialLoading && isLoadingMore && (
+            <div className="mb-2">
+              <MessageSkeleton />
+              <MessageSkeleton />
+            </div>
+          )}
           {messages?.map((msg, index) => {
             const msgId = String(msg.id);
             const prev = messages[index - 1];
-const showAvatar =
-  !prev ||
-  prev.sender_id !== msg.sender_id ||
-  shouldShowDateSeparator(messages, index);
-
+            const showAvatar =
+              !prev ||
+              prev.sender_id !== msg.sender_id ||
+              shouldShowDateSeparator(messages, index);
 
             return (
               <div
@@ -688,9 +861,9 @@ const showAvatar =
                 onMouseEnter={() => setHoveredId(msgId)}
                 onMouseLeave={() => setHoveredId(null)}
               >
-                {hoveredId === msgId && msg.self && (
+                {/* {hoveredId === msgId && msg.self && (
                   <ChatHover messageId={msgId} onAction={handleChatAction} />
-                )}
+                )} */}
                 {msg.pinned && (
                   <span className="absolute top-0 right-0 text-blue-500 text-sm">
                     <TbPinFilled size={20} className="text-amber-400" />
@@ -727,7 +900,7 @@ const showAvatar =
                                     hour: "numeric",
                                     minute: "numeric",
                                     hour12: true,
-                                  }
+                                  },
                                 )}
 
                                 {msg.updated_at &&
@@ -751,19 +924,29 @@ const showAvatar =
                   )}
 
                   <div className="relative">
-                    <div className={`rounded-md ms-[40px] w-fit flex flex-col ${msg.reactions && msg.reactions.length > 0 ? "mb-2" : ""}`}>
+                    <div
+                      className={`rounded-md ms-[40px] w-fit flex flex-col ${msg.reactions && msg.reactions.length > 0 ? "mb-2" : ""}`}
+                    >
                       <div
                         className={`leading-none leading-relaxed max-w-full whitespace-pre-wrap [overflow-wrap:anywhere] message ${showAvatar ? "hidden" : ""}`}
                         dangerouslySetInnerHTML={{
                           __html: DOMPurify.sanitize(msg.content),
                         }}
                       />
-                     {msg.files?.length  ? (
-                        <div className="flex gap-2 mt-2 aspect-square h-[100px] w-[100px] flex-wrap">
+                      {msg.files?.length ? (
+                        <div className="flex gap-2 mt-2 ">
                           {msg.files.map((file, i) => (
-                            <a key={i} href={file.url} target="_blank">
+                            <a
+                              key={i}
+                              href={file.url}
+                              target="_blank"
+                              className="aspect-square h-[100px] w-[100px]"
+                            >
                               {file.type.startsWith("image/") ? (
-                                <img src={file.url} className="w-full rounded border object-cover h-full" />
+                                <img
+                                  src={file.url}
+                                  className="w-full rounded border object-cover h-full"
+                                />
                               ) : (
                                 <div className="p-2 border rounded text-sm">
                                   📎 {file.name}
@@ -772,7 +955,7 @@ const showAvatar =
                             </a>
                           ))}
                         </div>
-                      ):null}
+                      ) : null}
 
                       {msg.reactions && msg.reactions.length > 0 && (
                         <Tooltip>
@@ -802,8 +985,8 @@ const showAvatar =
                               <div key={i} className="mb-1 col-span-1">
                                 <strong>{r.emoji}</strong>
                                 <div className="ml-2 ">
-                                  {(r.users ?? []).map((uid, j) => (
-                                    <div key={j}>User {uid}</div>
+                                  {(r.users ?? []).map((u, j) => (
+                                    <div key={j}>{u.name}</div>
                                   ))}
                                 </div>
                               </div>
@@ -865,6 +1048,7 @@ const showAvatar =
                 {hoveredId === msgId && (
                   <ChatHover
                     messageId={msgId}
+                    pinned={msg.pinned}
                     isSelf={msg.self}
                     onAction={handleChatAction}
                   />
@@ -890,6 +1074,7 @@ const showAvatar =
             onCancelEdit={handleCancelEdit}
           />
         </div>
+        <div ref={bottomRef} />
       </main>
     </div>
   );

@@ -32,10 +32,9 @@ import { UserType } from "@/app/components/context/userId_and_connection/provide
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [channels, setChannels] = React.useState<any[]>([]);
   const [users, setUsers] = React.useState<any[]>([]);
-  const { user } = useAuth();
+  const { user, socket } = useAuth();
   const [modalOpen, setModalOpen] = React.useState(false);
-const [modalType, setModalType] = React.useState<"channel" | "dm">("channel");
-
+  const [modalType, setModalType] = React.useState<"channel" | "dm">("channel");
 
   React.useEffect(() => {
     // if (!user) return;
@@ -49,20 +48,19 @@ const [modalType, setModalType] = React.useState<"channel" | "dm">("channel");
             url: `/channel/${c.id}`,
             is_private: c.is_private,
             is_dm: c.is_dm,
-          }))
+          })),
         );
 
         // ✅ Users
         const dm = await api.get(`/dm`);
-        
-setUsers(
-  dm.data.map((d: any) => ({
-    title: d.name,
-    url: `/dm/${d.id}`,   // ✅ THIS IS CHANNEL ID
-    avatar: d.avatar_url,
-  }))
-);
 
+        setUsers(
+          dm.data.map((d: any) => ({
+            title: d.name,
+            url: `/channel/${d.id}`, // ✅ THIS IS CHANNEL ID
+            avatar: d.avatar_url,
+          })),
+        );
       } catch (err) {
         console.error("Sidebar fetch error:", err);
       }
@@ -71,16 +69,64 @@ setUsers(
     fetchData();
   }, []);
 
+  React.useEffect(() => {
+    if (!socket) return;
 
-const handleAddChannel = () => {
-  setModalType("channel");
-  setModalOpen(true);
+    const handler = (channel: any) => {
+      setChannels((prev) => [
+        {
+          title: channel.name,
+          url: `/channel/${channel.id}`,
+          is_private: channel.isPrivate ?? channel.is_private,
+          is_dm: false,
+        },
+        ...prev,
+      ]);
+    };
+
+    socket.on("channelCreated", handler);
+
+    return () => {
+      socket.off("channelCreated", handler);
+    };
+  }, [socket]);
+
+  React.useEffect(() => {
+  if (!socket || !user) return;
+
+const dmHandler = (payload: any) => {
+  setUsers(prev => {
+    const exists = prev.some(u => u.url === `/channel/${payload.channel_id}`);
+    if (exists) return prev;
+
+    const otherUser = payload.members.find((m: any) => m.id !== user?.id);
+
+    return [{
+      title: otherUser.name,
+      url: `/channel/${payload.channel_id}`,
+      avatar: otherUser.avatar_url,
+    }, ...prev];
+  });
 };
 
-const handleAddDM = () => {
-  setModalType("dm");
-  setModalOpen(true);
-};
+
+  socket.on("dmCreated", dmHandler);
+
+  return () => {
+    socket.off("dmCreated", dmHandler);
+  };
+}, [socket, user]);
+
+
+  const handleAddChannel = () => {
+    setModalType("channel");
+    setModalOpen(true);
+  };
+
+  const handleAddDM = () => {
+    setModalType("dm");
+    setModalOpen(true);
+  };
 
   const data = {
     user: user,
@@ -97,7 +143,7 @@ const handleAddDM = () => {
         icon: SquareTerminal,
         isActive: true,
         items: channels,
-         onAdd: handleAddChannel,
+        onAdd: handleAddChannel,
       },
       {
         title: "Direct Messages",
@@ -107,16 +153,6 @@ const handleAddDM = () => {
         items: users,
         isActive: true,
         onAdd: handleAddDM,
-      },
-      {
-        title: "Apps & Docs",
-        url: "#",
-        type: "docs",
-        icon: BookOpen,
-        items: [
-          { title: "Introduction", url: "#" },
-          { title: "Get Started", url: "#" },
-        ],
       },
     ],
     projects: [
@@ -138,16 +174,15 @@ const handleAddDM = () => {
       </SidebarContent>
 
       <SidebarFooter>
-{user && <NavUser user={data.user as UserType} />}
+        {user && <NavUser user={data.user as UserType} />}
       </SidebarFooter>
 
       <SidebarRail />
       <CreateModal
-  open={modalOpen}
-  type={modalType}
-  onClose={() => setModalOpen(false)}
-/>
-
+        open={modalOpen}
+        type={modalType}
+        onClose={() => setModalOpen(false)}
+      />
     </Sidebar>
   );
 }

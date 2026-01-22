@@ -8,6 +8,8 @@ import { Label } from "@/app/components/ui/label";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/app/components/context/userId_and_connection/provider";
 import { useDebounce } from "@/hooks/useDebounce";
+import { Router } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 type User = {
   id: string;
@@ -27,6 +29,8 @@ export default function CreateModal({ open, onClose, type }: Props) {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
 const {  user } = useAuth();
+const router = useRouter();
+const [nameStatus, setNameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
 
 useEffect(() => {
   if (!isPrivate) {
@@ -37,6 +41,47 @@ useEffect(() => {
 
 
 const debouncedSearch = useDebounce(search, 300);
+const debouncedChannelName = useDebounce(channelName, 400);
+
+useEffect(() => {
+  if (type !== "channel") return;
+
+  if (!debouncedChannelName.trim()) {
+    setNameStatus("idle");
+    return;
+  }
+
+  const controller = new AbortController();
+
+  const checkName = async () => {
+    try {
+      setNameStatus("checking");
+
+      const res = await api.post("/channels", {
+        name: debouncedChannelName,
+        create: false, // 👈 just check
+      }, {
+        signal: controller.signal
+      });
+
+      if (res.data?.data?.available) {
+        setNameStatus("available");
+      } else {
+        setNameStatus("taken");
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        console.error("Channel name check failed", err);
+        setNameStatus("idle");
+      }
+    }
+  };
+
+  checkName();
+
+  return () => controller.abort();
+}, [debouncedChannelName, type]);
+
 
 useEffect(() => {
   if (!debouncedSearch) {
@@ -86,46 +131,26 @@ useEffect(() => {
     );
   };
 
-//  const handleSubmit = async () => {
-//   if (type !== "channel") return;
-//   if (!channelName.trim()) return;
-
-//   try {
-//    await fetch("/api/channels", {
-//   method: "POST",
-//   headers: {
-//     "Content-Type": "application/json",
-//     Authorization: `Bearer ${localStorage.getItem("token")}`,
-//   },
-//   body: JSON.stringify({
-//     name: channelName,
-//     isPrivate,
-//     memberIds: isPrivate
-//       ? selectedUsers.map((u) => Number(u.id))
-//       : [],
-//   }),
-// });
-
-//     resetAndClose();
-//   } catch (err) {
-//     console.error("Create channel failed", err);
-//   }
-// };
-
 const handleSubmit = async () => {
   try {
     if (type === "channel") {
-      if (!channelName.trim()) return;
+    if (!channelName.trim()) return;
+    if (nameStatus !== "available") return; // 👈 block
 
-        await api.post("/channels", {
-          name: channelName,
-          isPrivate,
-          memberIds: isPrivate ? selectedUsers.map((u) => Number(u.id)) : [],
-        });
+    const res = await api.post("/channels", {
+      name: channelName,
+      isPrivate,
+      memberIds: isPrivate ? selectedUsers.map(u => Number(u.id)) : [],
+      create: true, // 👈 REAL CREATE
+    });
 
-      resetAndClose();
-      return;
-    }
+    const channelId = res.data.data.id;
+
+    router.push(`/channel/${channelId}`);
+    resetAndClose();
+    return;
+  }
+
 
     // ✅ DM CREATE FLOW
     if (type === "dm") {
@@ -140,7 +165,7 @@ const handleSubmit = async () => {
         if (!data.dm_id) throw new Error("Failed to create DM");
 
       // ✅ Redirect to REAL DM channel
-      window.location.href = `/dm/${data.dm_id}`;
+      router.push(`/channel/${data.dm_id}`);
 
       resetAndClose();
     }
@@ -151,13 +176,23 @@ const handleSubmit = async () => {
 
 
 
-  const resetAndClose = () => {
-    setChannelName("");
-    setSearch("");
-    setIsPrivate(false);
-    setSelectedUsers([]);
-    onClose();
-  };
+  // const resetAndClose = () => {
+  //   setChannelName("");
+  //   setSearch("");
+  //   setIsPrivate(false);
+  //   setSelectedUsers([]);
+  //   onClose();
+  // };
+
+const resetAndClose = () => {
+  setChannelName("");
+  setSearch("");
+  setIsPrivate(false);
+  setSelectedUsers([]);
+  setNameStatus("idle");
+  onClose();
+};
+
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
@@ -170,12 +205,28 @@ const handleSubmit = async () => {
 
         {/* CHANNEL NAME */}
         {type === "channel" && (
+        <div className="space-y-1">
           <Input
             placeholder="Channel name"
             value={channelName}
             onChange={(e) => setChannelName(e.target.value)}
           />
+
+          {nameStatus === "checking" && (
+            <p className="text-xs text-muted-foreground">Checking availability...</p>
+          )}
+
+          {nameStatus === "available" && (
+            <p className="text-xs text-green-600">Channel name is available</p>
+          )}
+
+          {nameStatus === "taken" && (
+            <p className="text-xs text-red-600">Channel name already exists</p>
+          )}
+        </div>
         )}
+
+
 
         {/* PRIVATE TOGGLE */}
         {type === "channel" && (
@@ -219,9 +270,22 @@ const handleSubmit = async () => {
 )}
 
         {/* ACTION */}
-        <Button onClick={handleSubmit}>
+        {/* <Button onClick={handleSubmit}>
           {type === "channel" ? "Create Channel" : "Start Chat"}
-        </Button>
+        </Button> */}
+        <Button
+  onClick={handleSubmit}
+  disabled={
+    (type === "channel" &&
+      (nameStatus !== "available" || !channelName.trim())) ||
+    (type === "dm" && selectedUsers.length !== 1)
+  }
+  className="cursor-pointer"
+>
+  {type === "channel" ? "Create Channel" : "Start Chat"}
+</Button>
+
+
       </DialogContent>
     </Dialog>
   );
