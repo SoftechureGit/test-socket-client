@@ -292,3 +292,6 @@ code{
   display: block !important;
   width: 100% !important;
 }
+body{
+  overflow: hidden !important;
+}

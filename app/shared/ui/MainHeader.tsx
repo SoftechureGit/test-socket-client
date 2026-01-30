@@ -3,7 +3,7 @@
 import { useAuth } from "@/app/components/context/userId_and_connection/provider";
 import ButtonGroup from "@/app/components/ui/button-group";
 import TabsModalDemo from "@/app/components/ui/groupmember";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import api from "@/lib/axios";
 import { FaHeadphones } from "react-icons/fa6"
 import { FaRegBell } from "react-icons/fa";
@@ -46,6 +46,7 @@ export default function MainHeader({ id, type, dmUser, isPrivate }: MainHeaderPr
   const [channel, setChannel] = useState<Channel | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+const headerRef = useRef<HTMLDivElement | null>(null);
 
 const buttons = [
   { label: "Message", href: `/channel/${id}` },
@@ -88,8 +89,31 @@ const handleLeaveChannel = async () => {
     fetchChannelDetails();
   }, [id, type]);
 
+  useEffect(() => {
+  if (!headerRef.current) return;
+
+  const setHeight = () => {
+    const height = headerRef.current!.offsetHeight;
+    document.documentElement.style.setProperty(
+      "--chat-header-height",
+      `${height}px`
+    );
+  };
+
+  setHeight();
+
+  // Update on resize (responsive, font changes, etc)
+  const observer = new ResizeObserver(setHeight);
+  observer.observe(headerRef.current);
+
+  return () => observer.disconnect();
+}, []);
+
+
   return (
-    <div className="px-4 pt-4 pb-0 border-b flex justify-between sticky top-[55px] z-50 bg-white">
+    <div 
+      ref={headerRef}
+    className="px-4 pt-4 pb-0 border-b flex justify-between sticky top-[55px] z-50 bg-white">
       <div>
         <div className="flex gap-2">
 

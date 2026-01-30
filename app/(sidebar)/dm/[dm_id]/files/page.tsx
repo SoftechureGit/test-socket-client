@@ -61,7 +61,7 @@ export default function FileTab() {
             className="relative group/fileGroup" // <-- make this relative to position hover absolutely
           >
             <DocumentItem
-              name={f.name}
+              name={f.name ?? "unnamed file"}
               sharedBy={f.sender.name}
               date={new Date(f.created_at).toLocaleDateString()}
             />

@@ -17,6 +17,10 @@ type Member = {
   email: string;
   avatar_url?: string;
 };
+type ChannelInfo = {
+  id: number;
+  name: string;
+};
 
 type ChannelMembersProps = {
   isOpen: boolean;
@@ -32,7 +36,7 @@ export default function Channelmambers({
   channelName = "Channel",
 }: ChannelMembersProps) {
   const [members, setMembers] = useState<Member[]>([]);
-  const [channel_info, setChannelInfo] = useState([]);
+  const [channel_info, setChannelInfo] = useState<ChannelInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

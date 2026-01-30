@@ -1,14 +1,12 @@
 "use client";
-import { useEffect, useRef, useState,useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/app/components/context/userId_and_connection/provider";
 import MessageInput from "@/app/components/custom/MessageInput";
 import ChatHover from "@/app/components/chat-hover";
 import DOMPurify from "dompurify";
-import MainHeader from "@/app/shared/ui/MainHeader";
 import FileBg from "@/app/components/ui/file-bg";
 import FileUploadToggle from "@/app/components/ui/file-upload";
 import Dateseparator from "@/app/components/ui/date";
-import { shouldShowDateSeparator } from "@/lib/shouldShowDateSeparator";
 
 import {
   Popover,
@@ -25,6 +23,9 @@ import {
 import { TbPinFilled } from "react-icons/tb";
 import api from "@/lib/axios";
 
+type User = {
+  name: string;
+}
 type Reaction = { emoji: string; count: number; users?: string[] };
 type ChatFile = {
   url: string;
@@ -51,7 +52,6 @@ type ChatMessage = {
   reactions?: Reaction[];
   pinned?: boolean;
 };
-
 type ChannelChatProps = {
   channelId: string;
 };
@@ -63,10 +63,10 @@ export default function ChannelChat({ channelId }: ChannelChatProps) {
   const [channel, setChannel] = useState<Channel | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-const [initialLoading, setInitialLoading] = useState(false);
-const [isLoadingMore, setIsLoadingMore] = useState(false);
-const [nextCursor, setNextCursor] = useState<number | null>(null);
-const [hasMore, setHasMore] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(true);
 
   const formatDate = (date: string) =>
     new Date(date).toLocaleDateString("en-GB", {
@@ -95,6 +95,15 @@ const [hasMore, setHasMore] = useState(true);
   // for drag and drop file
   const [dragging, setDragging] = useState(false);
   const dragCounter = useRef(0);
+  const messageBoxRef = useRef<HTMLDivElement | null >(null);
+const didInitialScrollRef = useRef(false);
+const loadingMoreRef = useRef(false);
+
+const [hasNewMessages, setHasNewMessages] = useState(false);
+const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+const oldestMessageId = messages[0]?.id;
+const topMessageRef = useRef<HTMLDivElement | null>(null);
+
 
   const isFileDrag = (e: React.DragEvent) => {
     return Array.from(e.dataTransfer.types).includes("Files");
@@ -141,7 +150,6 @@ const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     if (!channelId) return;
-
     api
       .get(`/channels/${channelId}`)
       .then((res) => {
@@ -188,6 +196,8 @@ const [hasMore, setHasMore] = useState(true);
 
     const handleReceive = (msg: any) => {
       if (String(msg.channel_id) !== String(channelId)) return;
+        if (String(msg.sender_id) === String(userId)) return;
+
 
       const stableId =
         msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
@@ -203,30 +213,55 @@ const [hasMore, setHasMore] = useState(true);
         avatar_url: msg.avatar_url ?? null,
       };
 
+      // setMessages((prev) => {
+      //   // 1️⃣ Try to find the optimistic message to replace
+      //   const tempIdx = prev.findIndex(
+      //     (m) =>
+      //       m.self &&
+      //       m.id.toString().startsWith("temp-") &&
+      //       m.content === chatMsg.content,
+      //   );
+
+      //   if (tempIdx !== -1) {
+      //     const next = [...prev];
+      //     next[tempIdx] = chatMsg;
+      //     return next;
+      //   }
+
+      //   // 2️⃣ Prevent duplicates if message already exists
+      //   if (prev.some((m) => String(m.id) === String(chatMsg.id))) return prev;
+
+      //   return [...prev, chatMsg].sort(
+      //     (a, b) =>
+      //       new Date(a.created_at!).getTime() -
+      //       new Date(b.created_at!).getTime(),
+      //   );
+      // });
       setMessages((prev) => {
-        // 1️⃣ Try to find the optimistic message to replace
-        const tempIdx = prev.findIndex(
-          (m) =>
-            m.self &&
-            m.id.toString().startsWith("temp-") &&
-            m.content === chatMsg.content,
-        );
+  const exists = prev.some((m) => String(m.id) === String(chatMsg.id));
+  if (exists) return prev;
 
-        if (tempIdx !== -1) {
-          const next = [...prev];
-          next[tempIdx] = chatMsg;
-          return next;
-        }
+  const next = [...prev, chatMsg].sort(
+    (a, b) =>
+      new Date(a.created_at!).getTime() -
+      new Date(b.created_at!).getTime()
+  );
 
-        // 2️⃣ Prevent duplicates if message already exists
-        if (prev.some((m) => String(m.id) === String(chatMsg.id))) return prev;
+  // 👇 If user is NOT near bottom → show indicator
+  if (!shouldAutoScrollRef.current && !chatMsg.self) {
+  setHasNewMessages(true);
 
-        return [...prev, chatMsg].sort(
-          (a, b) =>
-            new Date(a.created_at!).getTime() -
-            new Date(b.created_at!).getTime(),
-        );
-      });
+  setHighlightedIds((prevSet) => {
+    const copy = new Set(prevSet);
+    copy.add(String(chatMsg.id));
+    return copy;
+  });
+}
+
+
+  return next;
+});
+
     };
 
     const handleAck = (msg: any) => {
@@ -286,144 +321,98 @@ const [hasMore, setHasMore] = useState(true);
     };
   }, [socket, userId]);
 
-// const loadMessages = async (initial = false) => {
-//   // Prevent overlapping loads
-//   if (!initial && isLoadingMore) return;
-//   if (!hasMore && !initial) return;
+  // const loadMessages = useCallback(
+  //   async (initial = false) => {
+  //     if (!channelId || !userId) return;
 
-//   const el = containerRef.current;
-//   const prevScrollHeight = el?.scrollHeight ?? 0;
+  //     console.log("loadMessages called", {
+  //       initial,
+  //       hasMore,
+  //       isLoadingMore,
+  //       nextCursor,
+  //     });
 
-//   if (initial) {
-//     setInitialLoading(true);
-//     setLoading(true);
-//   } else {
-//     setIsLoadingMore(true);  // show "top" skeleton when loading more
-//   }
+  //     // prevent overlapping and useless loads
+  //     if (!initial) {
+  //       if (isLoadingMore) return;
+  //       if (!hasMore) return;
+  //       // if (nextCursor == null) return;
+  //     }
 
-//   try {
-//     const res = await api.get(`/channels/${channelId}/messages`, {
-//       params: {
-//         limit: 20,
-//         cursor: initial ? null : nextCursor,
-//       },
-//     });
+  //     const el = containerRef.current;
+  //     const prevScrollHeight = el?.scrollHeight ?? 0;
 
-//     const data = res.data;
+  //     if (initial) {
+  //       setInitialLoading(true);
+  //     } else {
+  //       setIsLoadingMore(true);
+  //     }
 
-//     const mapped: ChatMessage[] = data.messages.map((msg: any) => ({
-//       id: msg.id,
-//       sender_id: String(msg.sender_id),
-//       sender_name: msg.sender_name,
-//       content: msg.content,
-//       files: msg.files ? JSON.parse(msg.files) : [],
-//       self: String(msg.sender_id) === String(userId),
-//       created_at: msg.created_at,
-//       updated_at: msg.updated_at,
-//       reactions: msg.reactions ? JSON.parse(msg.reactions) : [],
-//       avatar_url: msg.avatar_url ?? null,
-//       pinned: msg.pinned === true,
-//     }));
+  //     try {
+  //       const res = await api.get(`/channels/${channelId}/messages`, {
+  //         params: {
+  //           limit: 16,
+  //           cursor: initial ? null : nextCursor,
+  //         },
+  //       });
 
-//     setMessages((prev) => (initial ? mapped : [...mapped, ...prev]));
+  //       const data = res.data;
 
-//     setNextCursor(data.nextCursor);
-//     setHasMore(!!data.nextCursor);
+  //       const mapped: ChatMessage[] = data.messages.map((msg: any) => ({
+  //         id: msg.id,
+  //         sender_id: String(msg.sender_id),
+  //         sender_name: msg.sender_name,
+  //         content: msg.content,
+  //         files: msg.files ? JSON.parse(msg.files) : [],
+  //         self: String(msg.sender_id) === String(userId),
+  //         created_at: msg.created_at,
+  //         updated_at: msg.updated_at,
+  //         reactions: msg.reactions ? JSON.parse(msg.reactions) : [],
+  //         avatar_url: msg.avatar_url ?? null,
+  //         pinned: msg.pinned === true,
+  //       }));
 
-//     // restore scroll when prepending
-//     if (!initial && el) {
-//       requestAnimationFrame(() => {
-//         const newScrollHeight = el.scrollHeight;
-//         el.scrollTop = newScrollHeight - prevScrollHeight;
-//       });
-//     }
-//   } catch (err) {
-//     console.error("Failed to load messages:", err);
-//   } finally {
-//     if (initial) {
-//       setInitialLoading(false);
-//       setLoading(false);
-//     } else {
-//       setIsLoadingMore(false);
-//     }
-//   }
-// };
+  //       setMessages((prev) => (initial ? mapped : [...mapped, ...prev]));
 
-// const loadMessages = useCallback(
-//   async (initial = false) => {
-//     console.log("loadMessages called", { initial, hasMore, isLoadingMore, nextCursor });
-//     // prevent overlapping loads
-//     if (!initial && (isLoadingMore || !hasMore)) return;
+  //       const newCursor = data.nextCursor ?? null;
 
-//     const el = containerRef.current;
-//     const prevScrollHeight = el?.scrollHeight ?? 0;
+  //       // If no messages or cursor didn't move, stop further loading
+  //       if (!mapped.length || newCursor == null) {
+  //         setHasMore(false);
+  //       } else {
+  //         setHasMore(true);
+  //         setNextCursor(newCursor);
+  //       }
 
-//     if (initial) {
-//       setInitialLoading(true);
-//     } else {
-//       setIsLoadingMore(true);
-//     }
 
-//     try {
-//       const res = await api.get(`/channels/${channelId}/messages`, {
-//         params: {
-//           limit: 20,
-//           cursor: initial ? null : nextCursor,
-//         },
-//       });
-
-//       const data = res.data;
-
-//       const mapped: ChatMessage[] = data.messages.map((msg: any) => ({
-//         id: msg.id,
-//         sender_id: String(msg.sender_id),
-//         sender_name: msg.sender_name,
-//         content: msg.content,
-//         files: msg.files ? JSON.parse(msg.files) : [],
-//         self: String(msg.sender_id) === String(userId),
-//         created_at: msg.created_at,
-//         updated_at: msg.updated_at,
-//         reactions: msg.reactions ? JSON.parse(msg.reactions) : [],
-//         avatar_url: msg.avatar_url ?? null,
-//         pinned: msg.pinned === true,
-//       }));
-
-//       setMessages((prev) => (initial ? mapped : [...mapped, ...prev]));
-
-//       setNextCursor(data.nextCursor ?? null);
-//       setHasMore(!!data.nextCursor);
-
-//       // restore scroll when prepending
-//       if (!initial && el) {
-//         requestAnimationFrame(() => {
-//           const newScrollHeight = el.scrollHeight;
-//           el.scrollTop = newScrollHeight - prevScrollHeight;
-//         });
-//       }
-//     } catch (err) {
-//       console.error("Failed to load messages:", err);
-//     } finally {
-//       if (initial) {
-//         setInitialLoading(false);
-//       } else {
-//         setIsLoadingMore(false);
-//       }
-//     }
-//   },
-//   [channelId, userId, hasMore, isLoadingMore, nextCursor],
-// );
+  //       if (!initial && el) {
+  //         requestAnimationFrame(() => {
+  //           const newScrollHeight = el.scrollHeight;
+  //           el.scrollTop = newScrollHeight - prevScrollHeight;
+  //         });
+  //       }
+  //     } catch (err) {
+  //       console.error("Failed to load messages:", err);
+  //     } finally {
+  //       if (initial) {
+  //         setInitialLoading(false);
+  //       } else {
+  //         setIsLoadingMore(false);
+  //       }
+  //     }
+  //   },
+  //   [channelId, userId, hasMore, isLoadingMore, nextCursor],
+  // );
 
 const loadMessages = useCallback(
   async (initial = false) => {
     if (!channelId || !userId) return;
 
-    console.log("loadMessages called", { initial, hasMore, isLoadingMore, nextCursor });
-
-    // prevent overlapping and useless loads
+    // 🔒 HARD LOCK (prevents double fetch in same frame)
     if (!initial) {
-      if (isLoadingMore) return;
+      if (loadingMoreRef.current) return;
       if (!hasMore) return;
-      if (nextCursor == null) return;
+      loadingMoreRef.current = true;
     }
 
     const el = containerRef.current;
@@ -438,8 +427,8 @@ const loadMessages = useCallback(
     try {
       const res = await api.get(`/channels/${channelId}/messages`, {
         params: {
-          limit: 20,
-          cursor: initial ? null : nextCursor,
+          limit: 16,
+          cursor: messages[0]?.id ?? null,
         },
       });
 
@@ -463,10 +452,8 @@ const loadMessages = useCallback(
 
       const newCursor = data.nextCursor ?? null;
 
-      // If no messages or cursor didn't move, stop further loading
-      if (!mapped.length || newCursor === nextCursor || newCursor == null) {
+      if (!mapped.length || newCursor == null) {
         setHasMore(false);
-        setNextCursor(null);
       } else {
         setHasMore(true);
         setNextCursor(newCursor);
@@ -485,40 +472,38 @@ const loadMessages = useCallback(
         setInitialLoading(false);
       } else {
         setIsLoadingMore(false);
+        loadingMoreRef.current = false; // 🔓 UNLOCK
       }
     }
   },
-  [channelId, userId, hasMore, isLoadingMore, nextCursor],
+  [channelId, userId, hasMore, nextCursor],
 );
 
-  // useEffect(() => {
-  //   if (!channelId || !userId) return;
-
-  //   setMessages([]);
-  //   setNextCursor(null);
-  //   setHasMore(true);
-  //   setInitialLoading(true);
-
-  //   loadMessages(true);
-  // }, [channelId, userId]);
 
   useEffect(() => {
-  if (!channelId || !userId) return;
+    if (!channelId || !userId) return;
+didInitialScrollRef.current = false;
+    setMessages([]);
+    setNextCursor(null);
+    setHasMore(true);
 
-  setMessages([]);
-  setNextCursor(null);
-  setHasMore(true);
+    loadMessages(true);
+  }, [channelId, userId]);
 
-  loadMessages(true);
-}, [channelId, userId]);
+useEffect(() => {
+  if (!initialLoading) return;
 
-  useEffect(() => {
-    if (initialLoading) return;
-    const el = containerRef.current;
-    if (!el) return;
+  const el = containerRef.current;
+  if (!el) return;
+
+  // Only scroll to bottom on FIRST load
+  requestAnimationFrame(() => {
     el.scrollTop = el.scrollHeight;
-  }, [initialLoading]);
+    didInitialScrollRef.current = true;
+  });
+}, [initialLoading]);
 
+  
   useEffect(() => {
     if (!socket) return;
 
@@ -539,55 +524,101 @@ const loadMessages = useCallback(
     };
   }, [socket]);
 
-  // useEffect(() => {
-  //   const el = containerRef.current;
-  //   if (!el) return;
-  //   requestAnimationFrame(() => {
-  //     el.scrollTop = el.scrollHeight;
-  //   });
-  // }, [messages.length]);
+  const shouldAutoScrollRef = useRef(true);
 
-//   useEffect(() => {
+const lastMessageId = messages[messages.length - 1]?.id;
+
+useEffect(() => {
+  if (isLoadingMore) return;
+  if (!shouldAutoScrollRef.current) return;
+
+  bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+}, [lastMessageId]);
+
+
+// useEffect(() => {
 //   const el = containerRef.current;
 //   if (!el) return;
+//   console.log("SCROLL:", {
+//   scrollTop: el.scrollTop,
+//   clientHeight: el.clientHeight,
+//   scrollHeight: el.scrollHeight,
+// });
+
 
 //   const onScroll = () => {
-//     if (el.scrollTop < 200 && hasMore && !isLoadingMore && !initialLoading) {
+//     const nearBottom =
+//       el.scrollHeight - el.scrollTop - el.clientHeight < 400;
+
+//     // Only enable auto-scroll if user is near bottom
+//     shouldAutoScrollRef.current = nearBottom;
+
+//     // If user scrolls up near top → load older messages
+//     if (el.scrollTop < 400) {
 //       loadMessages(false);
 //     }
 //   };
 
 //   el.addEventListener("scroll", onScroll);
 //   return () => el.removeEventListener("scroll", onScroll);
-// }, [hasMore, isLoadingMore, initialLoading, nextCursor]); 
+// }, [loadMessages]);
+
+// useEffect(() => {
+//   const el = containerRef.current;
+//   if (!el) return;
+
+//   const onScroll = () => {
+//     // 🚫 Do NOTHING until initial scroll positioning is complete
+//     if (!didInitialScrollRef.current) return;
+
+//     const nearBottom =
+//       el.scrollHeight - el.scrollTop - el.clientHeight < 400;
+
+//     shouldAutoScrollRef.current = nearBottom;
+
+//     if (nearBottom) {
+//       setHasNewMessages(false);
+//       setHighlightedIds(new Set());
+//     }
+
+//     if (
+//       el.scrollTop < 200 &&
+//       !initialLoading &&
+//       !isLoadingMore &&
+//       hasMore
+//     ) {
+//       loadMessages(false);
+//     }
+//   };
+
+//   el.addEventListener("scroll", onScroll);
+//   return () => el.removeEventListener("scroll", onScroll);
+// }, [loadMessages, initialLoading, isLoadingMore, hasMore]);
+
 
 useEffect(() => {
-  const el = containerRef.current;
-  if (!el) return;
+  if (!topMessageRef.current) return;
+  if (!hasMore || isLoadingMore || initialLoading) return;
 
-  const onScroll = () => {
-    // when near top, try to load more
-    if (el.scrollTop < 200) {
-      loadMessages(false);
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const first = entries[0];
+      if (first.isIntersecting) {
+        loadMessages(false); // 👈 fetch older messages
+      }
+    },
+    {
+      root: containerRef.current, // 👈 chat scroll container
+      threshold: 0.1, // smallest visibility
     }
-  };
+  );
 
-  el.addEventListener("scroll", onScroll);
-  return () => el.removeEventListener("scroll", onScroll);
-}, [loadMessages]);
+  observer.observe(topMessageRef.current);
 
-  const shouldAutoScrollRef = useRef(true);
+  return () => observer.disconnect();
+}, [messages, hasMore, isLoadingMore, initialLoading, loadMessages]);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
 
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
-
-    if (nearBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
 
   function MessageSkeleton() {
     return (
@@ -798,9 +829,36 @@ useEffect(() => {
     );
   }
 
-  // useEffect(() => {
-  //   setMessages([]);
-  // }, [channelId]);
+ useEffect(() => {
+  if (!messageBoxRef.current) return;
+
+  const el = messageBoxRef.current;
+
+  const ro = new ResizeObserver(() => {
+    let height=getComputedStyle(document.documentElement).getPropertyValue("--main-header-height");
+    let mainheight=document.querySelectorAll('header')[0]?.clientHeight;
+    console.log("Message box height:", el.clientHeight);
+    console.log("Main header height", mainheight);
+  });
+
+  ro.observe(el);
+
+  return () => ro.disconnect();
+}, []);
+const handleScroll = () => {
+  console.log("SCROLL FIRED");
+};
+
+    useEffect(() => {
+      if (highlightedIds.size === 0) return;
+
+      const t = setTimeout(() => {
+        setHighlightedIds(new Set());
+      }, 3000);
+
+      return () => clearTimeout(t);
+    }, [highlightedIds]);
+
 
   return (
     <div
@@ -815,20 +873,29 @@ useEffect(() => {
           <FileBg />
         </div>
       )}
-      <main className="flex flex-col flex-1 min-h-0">
-        {/* <MainHeader
-  id={channelId}
-  type={isDm ? "dm" : "channel"}
-  dmUser={dmOtherUser}
-  isPrivate={channel?.is_private ?? false}
-/> */}
+      <main className="flex flex-col flex-1 min-h-0 overflow-y-auto max-h-[calc(100vh-var(--main-header-height)-var(--chat-header-height)+33px)] "
+        onScroll={handleScroll}
+        ref={containerRef}
+      >
+        {hasNewMessages && (
+          <div className="sticky top-2 z-50 flex justify-center">
+            <button
+              className="bg-blue-600 text-white px-4 py-1 rounded-full shadow-md text-sm"
+              onClick={() => {
+                bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+                setHasNewMessages(false);
+                setHighlightedIds(new Set());
+              }}
+            >
+              New messages ↓
+            </button>
+          </div>
+        )}
 
         <div
-          ref={containerRef}
-          className="flex-1 py-6 bg-[var(--sidebar)] overflow-y-auto"
+          className="flex-1 py-6 bg-[var(--sidebar)] px-0 "
           style={{ scrollbarGutter: "stable" }}
         >
-          {/* Initial full-page skeleton while first page loads */}
           {initialLoading && (
             <>
               <MessageSkeleton />
@@ -846,6 +913,7 @@ useEffect(() => {
           )}
           {messages?.map((msg, index) => {
             const msgId = String(msg.id);
+            const isHighlighted = highlightedIds.has(msgId);
             const prev = messages[index - 1];
             const showAvatar =
               !prev ||
@@ -855,9 +923,11 @@ useEffect(() => {
             return (
               <div
                 key={msgId}
-                className={` py-0 relative flex justify-start group/message !px-[25px] items-center gap-3 ${
-                  msg.pinned ? "pinned bg-amber-100" : "hover:bg-gray-100"
-                } ${shouldShowDateSeparator(messages, index) && "border-t"} `}
+                ref={index === 0 ? topMessageRef : null} 
+                className={` py-0 relative flex justify-start group/message !px-[25px] items-center gap-3 
+                  ${msg.pinned ? "pinned bg-amber-100" : "hover:bg-gray-100"}
+                  ${isHighlighted ? "bg-red-200 animate-pulse" : ""}
+                  ${shouldShowDateSeparator(messages, index) && "border-t"} `}
                 onMouseEnter={() => setHoveredId(msgId)}
                 onMouseLeave={() => setHoveredId(null)}
               >
@@ -986,7 +1056,7 @@ useEffect(() => {
                                 <strong>{r.emoji}</strong>
                                 <div className="ml-2 ">
                                   {(r.users ?? []).map((u, j) => (
-                                    <div key={j}>{u.name}</div>
+                                    <div key={j}>{u}</div>
                                   ))}
                                 </div>
                               </div>
@@ -1061,7 +1131,7 @@ useEffect(() => {
             );
           })}
         </div>
-        <div className="pb-2 px-[25px] pt-0 relative sticky bottom-0 right-0 bg-[var(--sidebar)] dark:bg-zinc-900 ">
+        <div className="pb-2 px-[25px] pt-0 relative sticky bottom-0 right-0 bg-[var(--sidebar)] dark:bg-zinc-900 " ref={messageBoxRef}>
           {/* Pass edit state into MessageInput. When user clicks edit, MessageInput will show Update/Cancel and call onSaveEdit/onCancelEdit */}
           <div>
             <FileUploadToggle />

@@ -42,6 +42,24 @@ type UploadingFile = {
   progress: number;
 };
 
+type UploadingPreview = {
+  uploading: true;
+  id: string;
+  name: string;
+  preview: string;
+  progress: number;
+};
+
+type UploadedPreview = {
+  uploading: false;
+  name: string;
+  url: string;
+  type: string;
+  path: string;
+  size: number;
+};
+
+type PreviewFile = UploadingPreview | UploadedPreview;
 
 
 const getFileKind = (type: string, name: string) => {
@@ -454,8 +472,25 @@ const deleteUploadedFile = async (index: number) => {
       editor.off("transaction", update);
     };
   }, [editor]);
+
+ const previewFiles: PreviewFile[] = [
+  ...uploading.map(
+    (file): UploadingPreview => ({
+      ...file,
+      uploading: true as const,
+    })
+  ),
+  ...uploadedFiles.map(
+    (file): UploadedPreview => ({
+      ...file,
+      uploading: false as const,
+    })
+  ),
+];
+
+
   return (
-    <div className="flex flex-col gap-2 w-full message-box border overflow-hidden rounded-xl -translate-y-[0.5rem]">
+    <div className="flex flex-col gap-2 w-full message-box border overflow-hidden rounded-xl -translate-y-[10px]">
       <div className="flex items-center gap-1 flex-wrap p-1 bg-gray-200">
         <ToolbarButton
           editor={editor}
@@ -547,11 +582,18 @@ const deleteUploadedFile = async (index: number) => {
           <EditorContent editor={editor} />
 
     <div className="flex flex-wrap gap-4 mt-2 w-fit">
-  {[
+
+      
+  {/* {[
     ...uploading.map((file) => ({ ...file, uploading: true })), // skeleton files
     ...uploadedFiles.map((file) => ({ ...file, uploading: false })), // completed files
   ].map((file, i) => {
-    const kind = file.uploading ? "image" : getFileKind(file.type, file.name);
+    const kind = file.uploading ? "image" : getFileKind(file.type, file.name); */}
+
+{previewFiles.map((file, i) => {
+  const kind = file.uploading
+    ? "image"
+    : getFileKind(file.type, file.name);
 
     return (
       <div
