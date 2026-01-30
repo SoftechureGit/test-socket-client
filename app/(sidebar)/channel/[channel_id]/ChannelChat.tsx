@@ -194,75 +194,129 @@ const topMessageRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!socket || !userId) return;
 
+//     const handleReceive = (msg: any) => {
+//       if (String(msg.channel_id) !== String(channelId)) return;
+//         if (String(msg.sender_id) === String(userId)) return;
+
+
+//       const stableId =
+//         msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+
+//       const chatMsg: ChatMessage = {
+//         id: stableId,
+//         sender_id: msg.sender_id,
+//         sender_name: msg.sender_name,
+//         content: msg.content,
+//         files: Array.isArray(msg.files) ? msg.files : [],
+//         self: String(msg.sender_id) === String(userId),
+//         created_at: msg.created_at ?? new Date().toISOString(),
+//         avatar_url: msg.avatar_url ?? null,
+//       };
+
+//       // setMessages((prev) => {
+//       //   // 1️⃣ Try to find the optimistic message to replace
+//       //   const tempIdx = prev.findIndex(
+//       //     (m) =>
+//       //       m.self &&
+//       //       m.id.toString().startsWith("temp-") &&
+//       //       m.content === chatMsg.content,
+//       //   );
+
+//       //   if (tempIdx !== -1) {
+//       //     const next = [...prev];
+//       //     next[tempIdx] = chatMsg;
+//       //     return next;
+//       //   }
+
+//       //   // 2️⃣ Prevent duplicates if message already exists
+//       //   if (prev.some((m) => String(m.id) === String(chatMsg.id))) return prev;
+
+//       //   return [...prev, chatMsg].sort(
+//       //     (a, b) =>
+//       //       new Date(a.created_at!).getTime() -
+//       //       new Date(b.created_at!).getTime(),
+//       //   );
+//       // });
+//       setMessages((prev) => {
+//   const exists = prev.some((m) => String(m.id) === String(chatMsg.id));
+//   if (exists) return prev;
+
+//   const next = [...prev, chatMsg].sort(
+//     (a, b) =>
+//       new Date(a.created_at!).getTime() -
+//       new Date(b.created_at!).getTime()
+//   );
+
+//   // 👇 If user is NOT near bottom → show indicator
+//   if (!shouldAutoScrollRef.current && !chatMsg.self) {
+//   setHasNewMessages(true);
+
+//   setHighlightedIds((prevSet) => {
+//     const copy = new Set(prevSet);
+//     copy.add(String(chatMsg.id));
+//     return copy;
+//   });
+// }
+
+
+//   return next;
+// });
+
+//     };
+
     const handleReceive = (msg: any) => {
-      if (String(msg.channel_id) !== String(channelId)) return;
-        if (String(msg.sender_id) === String(userId)) return;
+  if (String(msg.channel_id) !== String(channelId)) return;
 
+  const stableId = msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
 
-      const stableId =
-        msg.id ?? `${msg.sender_id}-${msg.created_at ?? Date.now()}`;
+  const chatMsg: ChatMessage = {
+    id: stableId,
+    sender_id: msg.sender_id,
+    sender_name: msg.sender_name,
+    content: msg.content,
+    files: Array.isArray(msg.files) ? msg.files : [],
+    self: String(msg.sender_id) === String(userId),
+    created_at: msg.created_at ?? new Date().toISOString(),
+    avatar_url: msg.avatar_url ?? null,
+  };
 
-      const chatMsg: ChatMessage = {
-        id: stableId,
-        sender_id: msg.sender_id,
-        sender_name: msg.sender_name,
-        content: msg.content,
-        files: Array.isArray(msg.files) ? msg.files : [],
-        self: String(msg.sender_id) === String(userId),
-        created_at: msg.created_at ?? new Date().toISOString(),
-        avatar_url: msg.avatar_url ?? null,
-      };
+  setMessages((prev) => {
+    // 🔹 Replace temp message if this is from the sender
+    const tempIdx = prev.findIndex(
+      (m) =>
+        m.self &&
+        m.id?.toString().startsWith("temp-") &&
+        m.content === chatMsg.content
+    );
 
-      // setMessages((prev) => {
-      //   // 1️⃣ Try to find the optimistic message to replace
-      //   const tempIdx = prev.findIndex(
-      //     (m) =>
-      //       m.self &&
-      //       m.id.toString().startsWith("temp-") &&
-      //       m.content === chatMsg.content,
-      //   );
+    if (tempIdx !== -1) {
+      const next = [...prev];
+      next[tempIdx] = chatMsg; // replace temp with server message
+      return next;
+    }
 
-      //   if (tempIdx !== -1) {
-      //     const next = [...prev];
-      //     next[tempIdx] = chatMsg;
-      //     return next;
-      //   }
+    // 🔹 Prevent duplicates if message already exists
+    if (prev.some((m) => String(m.id) === String(chatMsg.id))) return prev;
 
-      //   // 2️⃣ Prevent duplicates if message already exists
-      //   if (prev.some((m) => String(m.id) === String(chatMsg.id))) return prev;
+    const next = [...prev, chatMsg].sort(
+      (a, b) =>
+        new Date(a.created_at!).getTime() - new Date(b.created_at!).getTime()
+    );
 
-      //   return [...prev, chatMsg].sort(
-      //     (a, b) =>
-      //       new Date(a.created_at!).getTime() -
-      //       new Date(b.created_at!).getTime(),
-      //   );
-      // });
-      setMessages((prev) => {
-  const exists = prev.some((m) => String(m.id) === String(chatMsg.id));
-  if (exists) return prev;
+    // handle highlighted messages for auto scroll
+    if (!shouldAutoScrollRef.current && !chatMsg.self) {
+      setHasNewMessages(true);
+      setHighlightedIds((prevSet) => {
+        const copy = new Set(prevSet);
+        copy.add(String(chatMsg.id));
+        return copy;
+      });
+    }
 
-  const next = [...prev, chatMsg].sort(
-    (a, b) =>
-      new Date(a.created_at!).getTime() -
-      new Date(b.created_at!).getTime()
-  );
-
-  // 👇 If user is NOT near bottom → show indicator
-  if (!shouldAutoScrollRef.current && !chatMsg.self) {
-  setHasNewMessages(true);
-
-  setHighlightedIds((prevSet) => {
-    const copy = new Set(prevSet);
-    copy.add(String(chatMsg.id));
-    return copy;
+    return next;
   });
-}
+};
 
-
-  return next;
-});
-
-    };
 
     const handleAck = (msg: any) => {
       const stableId =
@@ -434,7 +488,7 @@ const loadMessages = useCallback(
 
       const data = res.data;
 
-      const mapped: ChatMessage[] = data.messages.map((msg: any) => ({
+      const mapped: ChatMessage[] = res.data.map((msg: any) => ({
         id: msg.id,
         sender_id: String(msg.sender_id),
         sender_name: msg.sender_name,
@@ -447,6 +501,7 @@ const loadMessages = useCallback(
         avatar_url: msg.avatar_url ?? null,
         pinned: msg.pinned === true,
       }));
+
 
       setMessages((prev) => (initial ? mapped : [...mapped, ...prev]));
 
