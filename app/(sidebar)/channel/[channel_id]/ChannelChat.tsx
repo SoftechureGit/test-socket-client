@@ -26,7 +26,11 @@ import api from "@/lib/axios";
 type User = {
   name: string;
 }
-type Reaction = { emoji: string; count: number; users?: string[] };
+type ReactionUser = {
+  id: number | string;
+  name: string;
+};
+type Reaction = { emoji: string; count: number; users?:  ReactionUser[] };
 type ChatFile = {
   url: string;
   name: string;
@@ -825,47 +829,95 @@ useEffect(() => {
     setShowEmojiPickerFor(messageId);
   }
 
-  function addEmojiToMessage(messageId: string | number, emoji: any) {
-    if (!socket || !userId) {
-      setShowEmojiPickerFor(null);
-      return;
-    }
+  // function addEmojiToMessage(messageId: string | number, emoji: any) {
+  //   if (!socket || !userId) {
+  //     setShowEmojiPickerFor(null);
+  //     return;
+  //   }
 
-    const selectedEmoji = emoji.native ?? emoji.colons ?? String(emoji);
+  //   const selectedEmoji = emoji.native ?? emoji.colons ?? String(emoji);
 
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (String(msg.id) !== String(messageId)) return msg;
+  //   setMessages((prev) =>
+  //     prev.map((msg) => {
+  //       if (String(msg.id) !== String(messageId)) return msg;
 
-        const reactions = msg.reactions
-          ? msg.reactions.map((r) => ({
-              ...r,
-              users: Array.isArray(r.users) ? r.users : [],
-            }))
-          : [];
+  //       const reactions = msg.reactions
+  //         ? msg.reactions.map((r) => ({
+  //             ...r,
+  //             users: Array.isArray(r.users) ? r.users : [],
+  //           }))
+  //         : [];
 
-        const existing = reactions.find((r) => r.emoji === selectedEmoji);
+  //       const existing = reactions.find((r) => r.emoji === selectedEmoji);
 
-        if (existing) {
-          if (!existing.users.includes(userId)) {
-            existing.users.push(userId);
-            existing.count = existing.users.length;
-          }
-        } else {
-          reactions.push({
-            emoji: selectedEmoji,
-            count: 1,
-            users: [userId],
-          });
-        }
+  //       if (existing) {
+  //         if (!existing.users.includes(userId)) {
+  //           existing.users.push(userId);
+  //           existing.count = existing.users.length;
+  //         }
+  //       } else {
+  //         reactions.push({
+  //           emoji: selectedEmoji,
+  //           count: 1,
+  //           users: [userId],
+  //         });
+  //       }
 
-        return { ...msg, reactions };
-      }),
-    );
+  //       return { ...msg, reactions };
+  //     }),
+  //   );
 
-    socket.emit("reactMessage", { messageId, emoji: selectedEmoji });
+  //   socket.emit("reactMessage", { messageId, emoji: selectedEmoji });
+  //   setShowEmojiPickerFor(null);
+  // }
+
+function addEmojiToMessage(messageId: string | number, emoji: any) {
+  if (!socket || !userId) {
     setShowEmojiPickerFor(null);
+    return;
   }
+
+  const selectedEmoji = emoji.native ?? emoji.colons ?? String(emoji);
+
+  setMessages((prev) =>
+    prev.map((msg) => {
+      if (String(msg.id) !== String(messageId)) return msg;
+
+      const reactions = msg.reactions
+        ? msg.reactions.map((r) => ({
+            ...r,
+            users: Array.isArray(r.users) ? r.users : [],
+          }))
+        : [];
+
+      const existing = reactions.find((r) => r.emoji === selectedEmoji);
+
+      if (existing) {
+        if (existing.users && !existing.users.includes(userId)) {
+          existing.users.push(userId);
+          existing.count = existing.users.length;
+        }
+      } else {
+        reactions.push({
+          emoji: selectedEmoji,
+          count: 1,
+          users: [userId],
+        });
+      }
+
+      return { ...msg, reactions };
+    }),
+  );
+
+  try {
+    socket.emit("reactMessage", { messageId, emoji: selectedEmoji });
+  } catch (err) {
+    console.error("Failed to emit reactMessage", err);
+  }
+
+  setShowEmojiPickerFor(null);
+}
+
 
   function toggleReaction(messageId: string | number, emoji: string) {
     if (!socket || !userId) return;
@@ -1135,7 +1187,7 @@ const handleScroll = () => {
                                 <strong>{r.emoji}</strong>
                                 <div className="ml-2 ">
                                   {(r.users ?? []).map((u, j) => (
-                                    <div key={j}>{u}</div>
+                                    <div key={j}>{u.name}</div>
                                   ))}
                                 </div>
                               </div>
